@@ -2,154 +2,209 @@ package com.example.travscraper;
 
 import com.example.travscraper.entity.ScrapedHorse;
 import com.example.travscraper.repo.ScrapedHorseRepo;
-import com.microsoft.playwright.*;                      //Changed!
-import jakarta.annotation.PostConstruct;               //Changed!
-import jakarta.annotation.PreDestroy;                  //Changed!
-import lombok.RequiredArgsConstructor;                 //Changed!
-import lombok.extern.slf4j.Slf4j;                      //Changed!
+import com.microsoft.playwright.*;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-@Slf4j                                                  //Changed!
+@Slf4j
 @Service
-@RequiredArgsConstructor                               //Changed!
+@RequiredArgsConstructor
 public class AtgScraperService {
 
-    /* ──────────────── DI beans ─────────────── */
-    private final ScraperProperties props;             //Changed!
-    private final ScrapedHorseRepo repo;               //Changed!
+    private final ScraperProperties props;
+    private final ScrapedHorseRepo repo;
 
-    /* ──────────────── Playwright ───────────── */
-    private Playwright playwright;                     //Changed!
-    private Browser browser;                           //Changed!
+    private Playwright playwright;
+    private Browser browser;
 
     private static final DateTimeFormatter URL_DATE_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    /* spin up headless Chromium once per JVM */      //Changed!
+    /* ---------------- life-cycle ---------------- */
     @PostConstruct
     void initBrowser() {
         playwright = Playwright.create();
-        browser = playwright.chromium().launch(
-                new BrowserType.LaunchOptions().setHeadless(true));
+        browser = playwright.chromium()
+                .launch(new BrowserType.LaunchOptions().setHeadless(true));
         log.info("🖥️  Headless browser launched");
     }
 
-    /* close browser on shutdown */                   //Changed!
     @PreDestroy
     void closeBrowser() {
         if (browser != null) browser.close();
         if (playwright != null) playwright.close();
     }
 
-    /** Kick off a full scrape for the configured date range & tracks */
+    /* ---------------- high-level loop ---------------- */
     public void scrape() {
-        props.getTracks().forEach(track -> {
-            log.info("🐎  Scraping track: {}", track);
-            LocalDate date = props.getStartDate();
-            while (!date.isAfter(props.getEndDate())) {
-                processDateTrack(date, track);
-                date = date.plusDays(1);
-            }
-        });
+        LocalDate date = props.getStartDate();
+        while (!date.isAfter(props.getEndDate())) {
+            log.info("📆  Scraping day {}", date);
+            LocalDate finalDate = date;
+            props.getTracks().forEach(t -> processDateTrack(finalDate, t));
+            date = date.plusDays(1);
+        }
     }
 
-    /** Load each race page in the browser, wait for table, hand to Jsoup */
+    /* ---------------- one (date, track) ---------------- */
+    /* ---------------- one (date, track) ---------------- */
     private void processDateTrack(LocalDate date, String track) {
-        for (int race = 1; race <= 15; race++) {
 
-            String url = String.format(
-                    "https://www.atg.se/spel/%s/vinnare/%s/lopp/%d/resultat",
-                    date.format(URL_DATE_FORMAT), track, race);       //Changed!
+        for (int lap = 1; lap <= 15; lap++) {
 
-            try (Page page = browser.newPage()) {                    //Changed!
-                page.navigate(url, new Page.NavigateOptions()
-                        .setTimeout(30_000));                         // 30 s
+            String base = "https://www.atg.se/spel/%s/%s/%s/lopp/%d/resultat";
+            String vUrl = String.format(base, date.format(URL_DATE_FORMAT), "vinnare", track, lap);
+            String pUrl = String.format(base, date.format(URL_DATE_FORMAT), "plats",   track, lap);
+            String tUrl = String.format(base, date.format(URL_DATE_FORMAT), "trio",    track, lap);
 
-                // Wait for at least one horse row (React finished)
-                page.waitForSelector("tr[data-test-id^=horse-row]",
-                        new Page.WaitForSelectorOptions()
-                                .setTimeout(15_000));                //Changed!
+            try (BrowserContext ctx = browser.newContext();
+                 Page vPage = ctx.newPage();
+                 Page pPage = ctx.newPage();
+                 Page tPage = ctx.newPage()) {
 
-                String html = page.content();                        //Changed!
-                parseAndPersist(html, date, track, race);
+                vPage.navigate(vUrl);
+                pPage.navigate(pUrl);
+                tPage.navigate(tUrl);
 
-                Thread.sleep(500);           // polite throttle        //Changed!
+                vPage.waitForSelector("tr[data-test-id^=horse-row]");
+                pPage.waitForSelector("tr[data-test-id^=horse-row]");
+
+                /*  wait for the “Rätt kombination:” label to appear  */           //Changed!
+                tPage.waitForSelector("text=\"Rätt kombination:\"");               //Changed!
+
+                if (!isCorrectTrack(vPage, track, vUrl, date)) return;
+
+                Map<String,String> pMap   = extractOddsMap(pPage, "[data-test-id=startlist-cell-podds]");
+                Map<String,String> trioMap= extractTrioMap(tPage);                 //Changed!
+
+                parseAndPersist(vPage.content(), date, track, lap, pMap, trioMap);
+                Thread.sleep(600 + (int)(Math.random()*1200));
 
             } catch (PlaywrightException e) {
-                log.warn("⚠️  Playwright issue on {}", url, e);
-                // if lap 1 fails assume no more races for that day/track
-                if (race == 1) break;
+                log.warn("⚠️  Playwright issue on {}", vUrl, e);
+                return;
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
             }
         }
     }
 
-    /* ---------- your existing Jsoup-based parser (unchanged) ---------- */
-    /* ---------- final Jsoup parser, fixed selector ---------- */
+    /* ---------- helper: build map <startNr , Trio-odds> ---------- */
+    private Map<String,String> extractTrioMap(Page page) {                         //Changed!
+        Map<String,String> map = new HashMap<>();
+        Document doc = Jsoup.parse(page.content());
+
+        /* find the “Rätt kombination:” label span */
+        Element labelSpan = doc.selectFirst("span:matchesOwn(^\\s*Rätt\\skombination:?)");
+        if (labelSpan == null) return map;  // no trio pool on this lap
+
+        /* the value is the next span with class ending in --value */
+        Element valueSpan = labelSpan.parent().selectFirst("span[class*=\"--value\"]");
+        if (valueSpan == null) return map;
+
+        String combo = valueSpan.text().trim();   // e.g. 1-7-10
+
+        /* find odds row (label “Odds:”) */
+        Element oddsLabel = doc.selectFirst("span:matchesOwn(^\\s*Odds:?)");
+        if (oddsLabel == null) return map;
+        Element oddsValue = oddsLabel.parent().selectFirst("span[class*=\"--value\"]");
+        if (oddsValue == null) return map;
+
+        String odds = oddsValue.text().trim();    // e.g. 81,70
+
+        Arrays.stream(combo.split("-")).forEach(n -> map.put(n, odds));
+        return map;
+    }
+
+    /* ---------- verify nav bar shows our track ---------- */
+    private boolean isCorrectTrack(Page page, String expected, String url, LocalDate date) {
+        Element active = Jsoup.parse(page.content())
+                .selectFirst("span[data-test-id^=calendar-menu-track-][data-test-active=true]");
+        if (active == null) return false;
+        String slug = slugify(
+                active.attr("data-test-id").substring("calendar-menu-track-".length()));
+        if (!slug.equals(expected.toLowerCase())) {
+            log.info("↪️  {} not present on {} (page shows {}), skipping", expected, date, slug);
+            return false;
+        }
+        return true;
+    }
+
+    /* ---------- helper: build map <startNr , P-odds> ---------- */
+    private Map<String,String> extractOddsMap(Page page, String oddsSelector) {
+        Document doc = Jsoup.parse(page.content());
+        Map<String,String> map = new HashMap<>();
+        for (var tr : doc.select("tr[data-test-id^=horse-row]")) {
+            Element split = tr.selectFirst("[startlist-export-id^=startlist-cell-horse-split-export]");
+            Element odds  = tr.selectFirst(oddsSelector);
+            if (split == null || odds == null) continue;
+            String[] parts = split.text().trim().split("\\s+",2);
+            if (parts.length > 0) map.put(parts[0], odds.text().trim());
+        }
+        return map;
+    }
+
+    /* ---------- Jsoup parser (adds P & Trio) ---------- */               //Changed!
     private void parseAndPersist(String html,
                                  LocalDate date,
                                  String track,
-                                 int lapNumber) {
+                                 int lapNumber,
+                                 Map<String,String> pMap,
+                                 Map<String,String> trioMap) {              //Changed!
 
         Document doc = Jsoup.parse(html);
         Elements rows = doc.select("tr[data-test-id^=horse-row]");
-
-        if (rows.isEmpty()) {
-            log.warn("No horse rows for {} {} lap {}", date, track, lapNumber);
-            return;
-        }
+        if (rows.isEmpty()) return;
 
         List<ScrapedHorse> horses = new ArrayList<>();
-        int badRows = 0;
+        int bad = 0;
 
         for (var tr : rows) {
+            Element place = tr.selectFirst("[data-test-id=horse-placement]");
+            Element split = tr.selectFirst("[startlist-export-id^=startlist-cell-horse-split-export]");
+            Element vOdd = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
+            if (place==null||split==null||vOdd==null) { if (++bad==1) log.info("Bad row:\n{}", tr); continue; }
 
-            Element placementEl = tr.selectFirst("[data-test-id=horse-placement]");
-            Element splitEl     = tr.selectFirst("[startlist-export-id=startlist-cell-horse-split-export]"); //Changed!
-            Element oddsEl      = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
-
-            if (placementEl == null || splitEl == null || oddsEl == null) {
-                if (++badRows == 1) log.info("⚠️  Still-mismatched row:\n{}", tr.outerHtml());
-                continue;
-            }
-
-            String placement = placementEl.text().trim();     // 1, 2, …
-            String split     = splitEl.text().trim();         // "6 Vikens Go for it"
-            String[] parts   = split.split("\\s+", 2);
-            String number    = parts.length > 0 ? parts[0] : "";
-            String name      = parts.length > 1 ? parts[1] : "";
-            String odds      = oddsEl.text().trim();          // 23,84
+            String[] parts = split.text().trim().split("\\s+",2);
+            String nr   = parts.length>0?parts[0]:"";
+            String name = parts.length>1?parts[1]:"";
 
             horses.add(ScrapedHorse.builder()
                     .date(date)
                     .track(track)
                     .lap(String.valueOf(lapNumber))
-                    .numberOfHorse(number)
+                    .numberOfHorse(nr)
                     .nameOfHorse(name)
-                    .placement(placement)
-                    .odds(odds)
+                    .placement(place.text().trim())
+                    .vOdds(vOdd.text().trim())
+                    .pOdds(pMap  .getOrDefault(nr,""))
+                    .trioOdds(trioMap.getOrDefault(nr,""))                //Changed!
                     .build());
         }
 
-        if (horses.isEmpty()) {
-            log.warn("Parsed 0 horses for {} {} lap {}  ({} rows skipped)",
-                    date, track, lapNumber, badRows);
-            return;
-        }
-
         repo.saveAll(horses);
-        log.info("💾 Saved {} horses for {} {} lap {}  ({} rows skipped)",
-                horses.size(), date, track, lapNumber, badRows);
+        log.info("💾 Saved {} horses for {} {} lap {}  ({} bad rows)", horses.size(),
+                date, track, lapNumber, bad);
     }
 
+    /* ---------- helper: slugify Swedish chars ---------- */
+    private static String slugify(String s) {
+        return Normalizer.normalize(s, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase();
+    }
 }

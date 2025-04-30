@@ -23,7 +23,9 @@ public class ScrapedHorse {
     private String numberOfHorse;
     private String nameOfHorse;
     private String placement;
-    private String odds;
+    private String vOdds;
+    private String pOdds;
+    private String trioOdds;
 }
 
 

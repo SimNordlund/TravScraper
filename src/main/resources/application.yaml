@@ -1,8 +1,12 @@
-# Adjust to suit your needs.
 scraper:
-  tracks: [romme, mantorp, farjestad, skelleftea, eskilstuna, jagersro, bollnas, solvalla, bergaker]
-  start-date: 2025-04-27
-  end-date: 2025-04-28
+  tracks: [
+    arvika, axevalla, bergsaker, boden, bollnas, dannero, eskilstuna, farjestad,
+    gavle, hagmyren, halmstad, hoting, jagersro, kalmar, karlshamn, lindesberg,
+    lycksele, mantorp, oviken, romme, rattvik, skelleftea, solvalla, solanget,
+    tingsryd, umea, vaggeryd, visby, aby, amal, arjang, orebro, ostersund
+  ]
+  start-date: 2025-04-01
+  end-date: 2025-04-29
 
 spring:
   main:
