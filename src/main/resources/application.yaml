@@ -1,0 +1,9 @@
+# Adjust to suit your needs.
+scraper:
+  tracks: [romme, mantorp, farjestad, skelleftea, eskilstuna, jagersro, bollnas, solvalla, bergaker]
+  start-date: 2025-04-27
+  end-date: 2025-04-28
+
+spring:
+  main:
+    banner-mode: "off"
