@@ -204,8 +204,10 @@ public class AtgScraperService {
             String nr   = parts.length>0?parts[0]:"";
             String name = parts.length>1?parts[1]:"";
 
+            String bankode = FULLNAME_TO_BANKODE.getOrDefault(slugify(track), track);
+
             horses.add(ScrapedHorse.builder()
-                    .date(date).track(track).lap(String.valueOf(lap))
+                    .date(date).track(bankode).lap(String.valueOf(lap))
                     .numberOfHorse(nr).nameOfHorse(name).placement(place.text().trim())
                     .vOdds(vOdd.text().trim())
                     .pOdds(pMap  .getOrDefault(nr,""))
@@ -223,4 +225,46 @@ public class AtgScraperService {
                 .replaceAll("\\p{M}", "")
                 .toLowerCase();
     }
+
+    //Mapper jao
+    private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
+            Map.entry("arvika",        "Ar"),  // Changed!
+            Map.entry("axevalla",      "Ax"),  // Changed!
+            Map.entry("bergsaker",     "B"),   // Changed!
+            Map.entry("boden",         "Bo"),  // Changed!
+            Map.entry("bollnas",       "Bs"),  // Changed!
+            Map.entry("dannero",       "D"),   // Changed!
+            Map.entry("dala jarna",    "Dj"),  // Changed!
+            Map.entry("eskilstuna",    "E"),   // Changed!
+            Map.entry("jagersro",      "J"),   // Changed!
+            Map.entry("farjestad",     "F"),   // Changed!
+            Map.entry("gavle",         "G"),   // Changed!
+            Map.entry("goteborg trav", "Gt"),  // Changed!
+            Map.entry("hagmyren",      "H"),   // Changed!
+            Map.entry("halmstad",      "Hd"),  // Changed!
+            Map.entry("hoting",        "Hg"),  // Changed!
+            Map.entry("karlshamn",     "Kh"),  // Changed!
+            Map.entry("kalmar",        "Kr"),  // Changed!
+            Map.entry("lindesberg",    "L"),   // Changed!
+            Map.entry("lycksele",      "Ly"),  // Changed!
+            Map.entry("mantorp",       "Mp"),  // Changed!
+            Map.entry("oviken",        "Ov"),  // Changed!
+            Map.entry("romme",         "Ro"),  // Changed!
+            Map.entry("rattvik",       "Rä"),  // Changed!
+            Map.entry("solvalla",      "S"),   // Changed!
+            Map.entry("skelleftea",    "Sk"),  // Changed!
+            Map.entry("solanget",      "Sä"),  // Changed!
+            Map.entry("tingsryd",      "Ti"),  // Changed!
+            Map.entry("taby trav",     "Tt"),  // Changed!
+            Map.entry("umaker",        "U"),   // Changed!
+            Map.entry("vemdalen",      "Vd"),  // Changed!
+            Map.entry("vaggeryd",      "Vg"),  // Changed!
+            Map.entry("visby",         "Vi"),  // Changed!
+            Map.entry("aby",           "Å"),   // Changed!
+            Map.entry("amal",          "Åm"),  // Changed!
+            Map.entry("arjang",        "År"),  // Changed!
+            Map.entry("orebro",        "Ö"),   // Changed!
+            Map.entry("ostersund",     "Ös")   // Changed!
+    );
+
 }
