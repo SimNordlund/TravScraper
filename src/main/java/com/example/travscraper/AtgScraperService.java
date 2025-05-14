@@ -64,6 +64,7 @@ public class AtgScraperService {
     /* ────────────────── one (date, track) ────────────────── */
     private void processDateTrack(LocalDate date, String track) {
 
+        int consecutiveMisses = 0;
         for (int lap = 1; lap <= 15; lap++) {
 
             String base = "https://www.atg.se/spel/%s/%s/%s/lopp/%d/resultat";
@@ -81,22 +82,38 @@ public class AtgScraperService {
                 pPage.navigate(pUrl);
                 tPage.navigate(tUrl);
 
+
+                /* ─── NEW: detect cancelled heat right away ─── */
+                if (isCancelledRace(vPage)) {
+                    log.info("🔸 Lap {} on {} {} is cancelled, continuing",
+                            lap, date, track);
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
+
                 /* wait (max 8 s) for a result table on the V-page */
                 try {
                     vPage.waitForSelector("tr[data-test-id^=horse-row]",
                             new Page.WaitForSelectorOptions().setTimeout(8_000));
                 } catch (PlaywrightException te) {
-                    log.info("⏭️  No result table for {} {} lap {}, skipping rest of laps",
+                    log.info("🔸 No result table for {} {} lap {}, continuing",
                             track, date, lap);
-                    break;                // stop trying higher lap numbers
+                    if (++consecutiveMisses >= 2) break; //Höj den här vid behov för att scrapa mer lopp.
+                    continue;
                 }
 
                 /* ─── verify track and lap on every page ─── */
-                if (!isCorrectTrack(vPage, track, date) ||
-                        !isCorrectLap  (vPage, lap,   track, date) ||
-                        !isCorrectLap  (pPage, lap,   track, date) ||
-                        !isCorrectLap  (tPage, lap,   track, date) )
-                    break;                // redirected → stop further laps
+                if (!isCorrectTrack(vPage, track, date)) return;
+                if (!isCorrectLap(vPage, lap, track, date) ||
+                        !isCorrectLap(pPage, lap, track, date) ||
+                        !isCorrectLap(tPage, lap, track, date)) {
+                    log.info("🔸 Lap {} missing on {} {}, continuing",
+                            lap, date, track);
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
+
+                consecutiveMisses = 0;
 
                 /* wait for P-page rows (short) */
                 pPage.waitForSelector("tr[data-test-id^=horse-row]",
@@ -115,12 +132,19 @@ public class AtgScraperService {
 
             } catch (PlaywrightException e) {
                 log.warn("⚠️  Playwright issue on {}", vUrl, e);
-                break;                    // serious issue → stop further laps
+                break;
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 return;
             }
         }
+    }
+
+    /* ─── helper: detect “Inställt …” banner ─── */
+    private boolean isCancelledRace(Page page) {
+        return Jsoup.parse(page.content())
+                .selectFirst("span[class*=cancelledRace], " +
+                        "span:matchesOwn(Inställt\\,?\\s+insatser)") != null;
     }
 
     /* ─── helper: verify current track (nav bar) ─── */
