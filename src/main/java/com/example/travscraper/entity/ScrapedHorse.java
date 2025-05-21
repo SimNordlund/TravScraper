@@ -19,7 +19,7 @@ public class ScrapedHorse {
 
     private LocalDate date;
     private String track;
-    private String lap;           // “lopp” – kept as String for now
+    private String lap;
     private String numberOfHorse;
     private String nameOfHorse;
     private String placement;

@@ -18,7 +18,6 @@ import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -34,7 +33,6 @@ public class AtgScraperService {
     private static final DateTimeFormatter URL_DATE_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    /* ────────────────── lifecycle ────────────────── */
     @PostConstruct
     void initBrowser() {
         playwright = Playwright.create();
@@ -49,7 +47,6 @@ public class AtgScraperService {
         if (playwright != null) playwright.close();
     }
 
-    /* ────────────────── top loop ────────────────── */
     public void scrape() {
         for (LocalDate d = props.getStartDate();
              !d.isAfter(props.getEndDate());
@@ -61,7 +58,6 @@ public class AtgScraperService {
         }
     }
 
-    /* ────────────────── one (date, track) ────────────────── */
     private void processDateTrack(LocalDate date, String track) {
 
         int consecutiveMisses = 0;
@@ -77,13 +73,12 @@ public class AtgScraperService {
                  Page pPage = ctx.newPage();
                  Page tPage = ctx.newPage()) {
 
-                /* ─── navigate all three pages in parallel ─── */
                 vPage.navigate(vUrl);
                 pPage.navigate(pUrl);
                 tPage.navigate(tUrl);
 
 
-                /* ─── NEW: detect cancelled heat right away ─── */
+
                 if (isCancelledRace(vPage)) {
                     log.info("🔸 Lap {} on {} {} is cancelled, continuing",
                             lap, date, track);
@@ -91,7 +86,7 @@ public class AtgScraperService {
                     continue;
                 }
 
-                /* wait (max 8 s) for a result table on the V-page */
+
                 try {
                     vPage.waitForSelector("tr[data-test-id^=horse-row]",
                             new Page.WaitForSelectorOptions().setTimeout(8_000));
@@ -115,11 +110,9 @@ public class AtgScraperService {
 
                 consecutiveMisses = 0;
 
-                /* wait for P-page rows (short) */
                 pPage.waitForSelector("tr[data-test-id^=horse-row]",
                         new Page.WaitForSelectorOptions().setTimeout(8_000));
 
-                /* wait for Trio overview, but don’t fail if trio pool missing */
                 tPage.waitForSelector("text=\"Rätt kombination:\"",
                         new Page.WaitForSelectorOptions().setTimeout(5_000)
                                 .setState(WaitForSelectorState.ATTACHED));
@@ -140,18 +133,18 @@ public class AtgScraperService {
         }
     }
 
-    /* ─── helper: detect “Inställt …” banner ─── */
+
     private boolean isCancelledRace(Page page) {
         return Jsoup.parse(page.content())
                 .selectFirst("span[class*=cancelledRace], " +
                         "span:matchesOwn(Inställt\\,?\\s+insatser)") != null;
     }
 
-    /* ─── helper: verify current track (nav bar) ─── */
+
     private boolean isCorrectTrack(Page page, String expected, LocalDate date) {
         Element active = Jsoup.parse(page.content())
                 .selectFirst("span[data-test-id^=calendar-menu-track-][data-test-active=true]");
-        if (active == null) return true;  // fallback
+        if (active == null) return true;
         String slug = slugify(active.attr("data-test-id")
                 .substring("calendar-menu-track-".length()));
         if (!slug.equals(expected.toLowerCase())) {
@@ -162,13 +155,13 @@ public class AtgScraperService {
         return true;
     }
 
-    /* ─── helper: verify current lap ─── */                     // ★ NEW ★
+
     private boolean isCorrectLap(Page page, int expected,
                                  String track, LocalDate date) {
 
         Document doc = Jsoup.parse(page.content());
         Element sel  = doc.selectFirst("[data-test-selected=true]");
-        if (sel == null) return true;      // single-lap pages have no selector
+        if (sel == null) return true;
 
         String current = sel.text().trim();
         if (!current.equals(String.valueOf(expected))) {
@@ -179,7 +172,7 @@ public class AtgScraperService {
         return true;
     }
 
-    /* ─── helper: build P-odds map ─── */
+
     private Map<String,String> extractOddsMap(Page page, String oddsSelector) {
         Map<String,String> map = new HashMap<>();
         for (Element tr : Jsoup.parse(page.content())
@@ -193,7 +186,7 @@ public class AtgScraperService {
         return map;
     }
 
-    /* ─── helper: Trio odds map ─── */
+
     private Map<String,String> extractTrioMap(Page page) {
         Map<String,String> map = new HashMap<>();
         Document doc = Jsoup.parse(page.content());
@@ -208,7 +201,7 @@ public class AtgScraperService {
         return map;
     }
 
-    /* ─── persist one lap ─── */
+
     private void parseAndPersist(String html,
                                  LocalDate date, String track, int lap,
                                  Map<String,String> pMap,
@@ -243,52 +236,52 @@ public class AtgScraperService {
         log.info("💾 Saved {} horses for {} {} lap {}", horses.size(), date, track, lap);
     }
 
-    /* ─── slugify Swedish chars ─── */
+
     private static String slugify(String s) {
         return Normalizer.normalize(s, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "")
                 .toLowerCase();
     }
 
-    //Mapper jao
+
     private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
-            Map.entry("arvika",        "Ar"),  // Changed!
-            Map.entry("axevalla",      "Ax"),  // Changed!
-            Map.entry("bergsaker",     "B"),   // Changed!
-            Map.entry("boden",         "Bo"),  // Changed!
-            Map.entry("bollnas",       "Bs"),  // Changed!
-            Map.entry("dannero",       "D"),   // Changed!
-            Map.entry("dala jarna",    "Dj"),  // Changed!
-            Map.entry("eskilstuna",    "E"),   // Changed!
-            Map.entry("jagersro",      "J"),   // Changed!
-            Map.entry("farjestad",     "F"),   // Changed!
-            Map.entry("gavle",         "G"),   // Changed!
-            Map.entry("goteborg trav", "Gt"),  // Changed!
-            Map.entry("hagmyren",      "H"),   // Changed!
-            Map.entry("halmstad",      "Hd"),  // Changed!
-            Map.entry("hoting",        "Hg"),  // Changed!
-            Map.entry("karlshamn",     "Kh"),  // Changed!
-            Map.entry("kalmar",        "Kr"),  // Changed!
-            Map.entry("lindesberg",    "L"),   // Changed!
-            Map.entry("lycksele",      "Ly"),  // Changed!
-            Map.entry("mantorp",       "Mp"),  // Changed!
-            Map.entry("oviken",        "Ov"),  // Changed!
-            Map.entry("romme",         "Ro"),  // Changed!
-            Map.entry("rattvik",       "Rä"),  // Changed!
-            Map.entry("solvalla",      "S"),   // Changed!
-            Map.entry("skelleftea",    "Sk"),  // Changed!
-            Map.entry("solanget",      "Sä"),  // Changed!
-            Map.entry("tingsryd",      "Ti"),  // Changed!
-            Map.entry("taby trav",     "Tt"),  // Changed!
-            Map.entry("umaker",        "U"),   // Changed!
-            Map.entry("vemdalen",      "Vd"),  // Changed!
-            Map.entry("vaggeryd",      "Vg"),  // Changed!
-            Map.entry("visby",         "Vi"),  // Changed!
-            Map.entry("aby",           "Å"),   // Changed!
-            Map.entry("amal",          "Åm"),  // Changed!
-            Map.entry("arjang",        "År"),  // Changed!
-            Map.entry("orebro",        "Ö"),   // Changed!
-            Map.entry("ostersund",     "Ös")   // Changed!
+            Map.entry("arvika",        "Ar"),
+            Map.entry("axevalla",      "Ax"),
+            Map.entry("bergsaker",     "B"),
+            Map.entry("boden",         "Bo"),
+            Map.entry("bollnas",       "Bs"),
+            Map.entry("dannero",       "D"),
+            Map.entry("dala jarna",    "Dj"),
+            Map.entry("eskilstuna",    "E"),
+            Map.entry("jagersro",      "J"),
+            Map.entry("farjestad",     "F"),
+            Map.entry("gavle",         "G"),
+            Map.entry("goteborg trav", "Gt"),
+            Map.entry("hagmyren",      "H"),
+            Map.entry("halmstad",      "Hd"),
+            Map.entry("hoting",        "Hg"),
+            Map.entry("karlshamn",     "Kh"),
+            Map.entry("kalmar",        "Kr"),
+            Map.entry("lindesberg",    "L"),
+            Map.entry("lycksele",      "Ly"),
+            Map.entry("mantorp",       "Mp"),
+            Map.entry("oviken",        "Ov"),
+            Map.entry("romme",         "Ro"),
+            Map.entry("rattvik",       "Rä"),
+            Map.entry("solvalla",      "S"),
+            Map.entry("skelleftea",    "Sk"),
+            Map.entry("solanget",      "Sä"),
+            Map.entry("tingsryd",      "Ti"),
+            Map.entry("taby trav",     "Tt"),
+            Map.entry("umaker",        "U"),
+            Map.entry("vemdalen",      "Vd"),
+            Map.entry("vaggeryd",      "Vg"),
+            Map.entry("visby",         "Vi"),
+            Map.entry("aby",           "Å"),
+            Map.entry("amal",          "Åm"),
+            Map.entry("arjang",        "År"),
+            Map.entry("orebro",        "Ö"),
+            Map.entry("ostersund",     "Ös")
     );
 
 }

@@ -10,18 +10,14 @@ import java.util.List;
 @ConfigurationProperties(prefix = "scraper")
 public class ScraperProperties {
 
-    /** Tracks to scrape – names must match the URL segment */
     private List<String> tracks = List.of(
             "romme", "mantorp", "farjestad", "skelleftea", "eskilstuna",
             "jagersro", "bollnas", "solvalla", "bergaker", "orebro");
 
-    /** Inclusive start date (yyyy-MM-dd) */
     private LocalDate startDate = LocalDate.now().minusDays(4);
 
-    /** Inclusive end date (yyyy-MM-dd) */
     private LocalDate endDate = LocalDate.now().minusDays(3);
 
-    // getters & setters
     public List<String> getTracks() { return tracks; }
     public void setTracks(List<String> tracks) { this.tracks = tracks; }
     public LocalDate getStartDate() { return startDate; }
