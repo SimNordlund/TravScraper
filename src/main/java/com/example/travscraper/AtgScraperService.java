@@ -243,7 +243,7 @@ public class AtgScraperService {
                 .toLowerCase();
     }
 
-
+    //Finns alla banor med?
     private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
             Map.entry("arvika",        "Ar"),
             Map.entry("axevalla",      "Ax"),
