@@ -12,6 +12,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.text.Normalizer;
@@ -47,6 +48,7 @@ public class AtgScraperService {
         if (playwright != null) playwright.close();
     }
 
+    @Scheduled(cron = "0 30 22 * * *", zone = "Europe/Stockholm")
     public void scrape() {
         for (LocalDate d = props.getStartDate();
              !d.isAfter(props.getEndDate());
