@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.text.Normalizer;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -48,7 +49,7 @@ public class AtgScraperService {
         if (playwright != null) playwright.close();
     }
 
-    @Scheduled(cron = "0 30 22 * * *", zone = "Europe/Stockholm")
+  /*  @Scheduled(cron = "0 30 22 * * *", zone = "Europe/Stockholm")
     public void scrape() {
         for (LocalDate d = props.getStartDate();
              !d.isAfter(props.getEndDate());
@@ -58,6 +59,18 @@ public class AtgScraperService {
             LocalDate day = d;
             props.getTracks().forEach(t -> processDateTrack(day, t));
         }
+    } */
+
+    @Scheduled(cron = "0 30 22 * * *", zone = "Europe/Stockholm")
+    public void scrape() {
+        LocalDate target = LocalDate
+                .now(ZoneId.of("Europe/Stockholm"))
+                .minusDays(1);
+
+        log.info("📆  Scraping {}", target);
+
+        props.getTracks().forEach(t -> processDateTrack(target, t));
+
     }
 
     private void processDateTrack(LocalDate date, String track) {
