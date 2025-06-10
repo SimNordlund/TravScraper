@@ -28,6 +28,8 @@
     </scm>
     <properties>
         <java.version>17</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>         <!--Changed!-->
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding> <!--Changed!-->
     </properties>
     <dependencies>
         <dependency>
@@ -89,12 +91,25 @@
     </dependencies>
 
     <build>
+        <resources>                             <!--Changed!-->
+            <resource>                          <!--Changed!-->
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>    <!--Changed!-->
+            </resource>                         <!--Changed!-->
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <plugin>                                                <!--Changed!-->
+                <artifactId>maven-resources-plugin</artifactId>     <!--Changed!-->
+                <configuration>                                     <!--Changed!-->
+                    <encoding>UTF-8</encoding>                      <!--Changed!-->
+                </configuration>                                    <!--Changed!-->
+            </plugin>
         </plugins>
+
     </build>
 
 </project>
