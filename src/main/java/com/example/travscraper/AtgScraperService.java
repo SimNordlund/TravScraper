@@ -61,7 +61,7 @@ public class AtgScraperService {
         }
     } */
 
-    @Scheduled(cron = "0 35 22 * * *", zone = "Europe/Stockholm")
+    @Scheduled(cron = "0 00 21 * * *", zone = "Europe/Stockholm")
     public void scrape() {
         LocalDate target = LocalDate
                 .now(ZoneId.of("Europe/Stockholm"))
