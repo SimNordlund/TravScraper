@@ -1,31 +1,35 @@
 package com.example.travscraper.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
 
 @Entity
-@NoArgsConstructor
-@AllArgsConstructor
-@Getter @Setter @Builder
+@Table(
+        name = "scraped_horse",
+        uniqueConstraints = @UniqueConstraint(
+                columnNames = { "date", "track", "lap", "number_of_horse" })
+)
+@IdClass(ScrapedHorseKey.class)
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class ScrapedHorse {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
 
+    @Id
     private LocalDate date;
+
+    @Id
     private String track;
+
+    @Id
     private String lap;
+
+    @Id
     private String numberOfHorse;
+
     private String nameOfHorse;
     private String placement;
     private String vOdds;
     private String pOdds;
     private String trioOdds;
 }
-
-

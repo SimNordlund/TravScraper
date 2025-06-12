@@ -1,0 +1,14 @@
+cronJobs:
+  - type: cron
+    name: travscraper-summer
+    env: docker
+    dockerfilePath: ./Dockerfile
+    schedule: "0 20 * 3-10 *"          # 22:00 Swedish time (summer)
+    command: java -jar /app/app.jar
+
+  - type: cron
+    name: travscraper-winter
+    env: docker
+    dockerfilePath: ./Dockerfile
+    schedule: "0 21 * 11,12,1,2 *"     # 22:00 Swedish time (winter)
+    command: java -jar /app/app.jar
