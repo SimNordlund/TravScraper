@@ -61,11 +61,10 @@ public class AtgScraperService {
         }
     } */
 
-    @Scheduled(cron = "0 08 22 * * *", zone = "Europe/Stockholm")
+    @Scheduled(cron = "0 */10 * * * *", zone = "Europe/Stockholm")  //Changed!
     public void scrape() {
-        LocalDate target = LocalDate
-                .now(ZoneId.of("Europe/Stockholm"))
-                .minusDays(1);
+        LocalDate target = LocalDate.now(ZoneId.of("Europe/Stockholm"));
+               // .minusDays(1);
 
         log.info("📆  Scraping {}", target);
 
