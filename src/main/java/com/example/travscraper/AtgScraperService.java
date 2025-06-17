@@ -16,6 +16,9 @@ import org.jsoup.select.Elements;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -78,14 +81,40 @@ public class AtgScraperService {
 
         /* ── create context once per job (keeps consent-cookie) ── */
         if (ctx == null) {
-            ctx = browser.newContext();
-            ctx.addInitScript(
-                    "() => {" +
-                            "  const btn = [...document.querySelectorAll('button')] " +
-                            "      .find(b => /Jag\\s*f[öo]rst[åa]r/i.test(b.textContent));" +
-                            "  if (btn) btn.click();" +
-                            "}"
+            ctx = browser.newContext(
+                    new Browser.NewContextOptions()
+                            .setLocale("sv-SE")
+                            .setTimezoneId("Europe/Stockholm")
+                            .setGeolocation(59.33, 18.06)
+                            .setPermissions(List.of("geolocation"))
+                            .setUserAgent(
+                                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                                            "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                                            "Chrome/125.0.0.0 Safari/537.36")
             );
+
+// runs on every navigation
+            ctx.addInitScript("""
+  () => {
+    const tryClick = () => {
+      const patterns = [
+        /Jag\\s*f(ö|o)rst(å|a)r/i,
+        /Godk(ä|a)nn\\s+alla\\s+cookies/i,
+        /Endast\\s+n(ö|o)dv(ä|a)ndiga/i,
+        /Tillåt\\s+alla/i,
+        /Avvisa/i
+      ];
+      try {
+        const btn = [...document.querySelectorAll('button')]
+          .find(b => patterns.some(rx => rx.test(b.textContent)));
+        if (btn) btn.click();
+      } catch (_) { /* ignore shadow-DOM issues */ }
+    };
+    tryClick();                  // immediately
+    setTimeout(tryClick, 400);   // in case banner slides in late
+    setTimeout(tryClick, 4000);  // one more try
+  }
+""");
         }
 
         int consecutiveMisses = 0;
@@ -101,11 +130,43 @@ public class AtgScraperService {
                  Page pPage = ctx.newPage();
                  Page tPage = ctx.newPage()) {
 
-                Page.NavigateOptions nav = new Page.NavigateOptions()
+                Page.NavigateOptions nav = new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE)
                         .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
                         .setTimeout(60_000);
 
                 vPage.navigate(vUrl, nav);
+
+
+                ElementHandle first = vPage.waitForSelector(
+                        "button:has-text(\"Tillåt alla\"):visible, " +
+                                "button:has-text(\"Avvisa\"):visible, "      +
+                                "tr[data-test-id^=horse-row]",
+                        new Page.WaitForSelectorOptions().setTimeout(60_000));
+
+// if the thing we got back is a button → click it, then wait for table
+                if ("BUTTON".equalsIgnoreCase(first.evaluate("e => e.tagName").toString())) {
+                    first.click();                           // dismiss banner
+                    vPage.waitForSelector("tr[data-test-id^=horse-row]",   // now wait for table
+                            new Page.WaitForSelectorOptions().setTimeout(60_000));
+                }
+
+                vPage.waitForSelector(
+                        "button:has-text('Tillåt alla'), button:has-text('Avvisa'), tr[data-test-id^=horse-row]",
+                        new Page.WaitForSelectorOptions().setTimeout(60_000)
+                );
+
+                if (System.getenv("FLY_APP_NAME") != null) {            // only in Fly
+                    try {
+                        vPage.screenshot(new Page.ScreenshotOptions()
+                                .setPath(Paths.get("/app/debug-vpage.png"))
+                                .setFullPage(true));
+                        Files.writeString(Path.of("/app/debug-vpage.html"), vPage.content());
+                        log.info("📸 saved /app/debug-vpage.png + .html");
+                    } catch (Exception e) {
+                        log.warn("debug dump failed", e);
+                    }
+                }
+
                 pPage.navigate(pUrl, nav);
                 tPage.navigate(tUrl, nav);
 
@@ -117,7 +178,7 @@ public class AtgScraperService {
 
                 try {
                     vPage.waitForSelector("tr[data-test-id^=horse-row]",
-                            new Page.WaitForSelectorOptions().setTimeout(8_000));
+                            new Page.WaitForSelectorOptions().setTimeout(60_000));
                 } catch (PlaywrightException te) {
                     log.info("🔸 No result table for {} {} lap {}, continuing", track, date, lap);
                     if (++consecutiveMisses >= 2) break;
@@ -136,7 +197,7 @@ public class AtgScraperService {
                 consecutiveMisses = 0;
 
                 pPage.waitForSelector("tr[data-test-id^=horse-row]",
-                        new Page.WaitForSelectorOptions().setTimeout(8_000));
+                        new Page.WaitForSelectorOptions().setTimeout(60_000));
 
                 tPage.waitForSelector("text=\"Rätt kombination:\"",
                         new Page.WaitForSelectorOptions()
@@ -254,6 +315,7 @@ public class AtgScraperService {
     }
 
     /*  bankod-tabellen oförändrad  */
+    //Bro Park?
     private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
             Map.entry("arvika", "Ar"), Map.entry("axevalla", "Ax"),
             Map.entry("bergsaker", "B"), Map.entry("boden", "Bo"),
