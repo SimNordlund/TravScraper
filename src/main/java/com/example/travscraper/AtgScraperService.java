@@ -131,9 +131,9 @@ public class AtgScraperService {
                  Page pPage = ctx.newPage();
                  Page tPage = ctx.newPage()) {
 
-                Page.NavigateOptions nav = new Page.NavigateOptions()       //Changed!
-                        .setWaitUntil(WaitUntilState.NETWORKIDLE)           //Changed!
-                        .setTimeout(60_000);                                //Changed!
+                Page.NavigateOptions nav = new Page.NavigateOptions()
+                        .setWaitUntil(WaitUntilState.NETWORKIDLE)
+                        .setTimeout(60_000);
 
                 vPage.navigate(vUrl, nav);
 
@@ -144,17 +144,17 @@ public class AtgScraperService {
                 }
 
                 ElementHandle first;
-                try {                                                    //Changed!
+                try {
                     first = vPage.waitForSelector(
                             "button:has-text(\"Tillåt alla\"):visible, " +
                                     "button:has-text(\"Avvisa\"):visible, " +
                                     "tr[data-test-id^=horse-row]",
                             new Page.WaitForSelectorOptions().setTimeout(60_000));
-                } catch (PlaywrightException e) {                        //Changed!
-                    if (e.getMessage().contains("Timeout")) {            //Changed!
-                        log.info("⏩ Lap {} saknas för {} {}, hoppar vidare", lap, track, date); //Changed!
-                        if (++consecutiveMisses >= 2) break;             //Changed!
-                        continue;                                        //Changed!
+                } catch (PlaywrightException e) {
+                    if (e.getMessage().contains("Timeout")) {
+                        log.info("⏩ Lap {} saknas för {} {}, hoppar vidare", lap, track, date);
+                        if (++consecutiveMisses >= 2) break;
+                        continue;
                     }
                     throw e; // annat fel – bubbla up
                 }
@@ -197,9 +197,9 @@ public class AtgScraperService {
                             new Page.WaitForSelectorOptions().setTimeout(60_000));
                 } catch (PlaywrightException e) {
                     log.warn("⚠️  Playwright-fel på {}: {}", vUrl, e.getMessage());
-                    if (e.getMessage().contains("Timeout")) {        //Changed!
-                        if (++consecutiveMisses >= 2) break;         //Changed!
-                        continue;                                    //Changed!
+                    if (e.getMessage().contains("Timeout")) {
+                        if (++consecutiveMisses >= 2) break;
+                        continue;
                     }
                     break; // annat fel – ge upp banan
                 }
@@ -229,12 +229,12 @@ public class AtgScraperService {
                 parseAndPersist(vPage.content(), date, track, lap, pMap, trioMap);
                 Thread.sleep(600 + (int) (Math.random() * 1200));
 
-            } catch (PlaywrightException e) {                       //Changed!
-                log.warn("⚠️  Playwright-fel på {}: {}", vUrl, e.getMessage()); //Changed!
-                if (e.getMessage().contains("Timeout")) {           //Changed!
-                    if (++consecutiveMisses >= 2) break;            //Changed!
-                    continue;                                       //Changed!
-                }                                                   //Changed!
+            } catch (PlaywrightException e) {
+                log.warn("⚠️  Playwright-fel på {}: {}", vUrl, e.getMessage());
+                if (e.getMessage().contains("Timeout")) {
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
                 break; // annat fel – ge upp banan
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();

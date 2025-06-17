@@ -6,7 +6,7 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.4.5</version>
-        <relativePath/> <!-- lookup parent from repository -->
+        <relativePath/>
     </parent>
     <groupId>com.example</groupId>
     <artifactId>TravScraper</artifactId>
@@ -28,8 +28,8 @@
     </scm>
     <properties>
         <java.version>17</java.version>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>         <!--Changed!-->
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding> <!--Changed!-->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
     <dependencies>
         <dependency>
@@ -91,22 +91,22 @@
     </dependencies>
 
     <build>
-        <resources>                             <!--Changed!-->
-            <resource>                          <!--Changed!-->
+        <resources>
+            <resource>
                 <directory>src/main/resources</directory>
-                <filtering>false</filtering>    <!--Changed!-->
-            </resource>                         <!--Changed!-->
+                <filtering>false</filtering>
+            </resource>
         </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
-            <plugin>                                                <!--Changed!-->
-                <artifactId>maven-resources-plugin</artifactId>     <!--Changed!-->
-                <configuration>                                     <!--Changed!-->
-                    <encoding>UTF-8</encoding>                      <!--Changed!-->
-                </configuration>                                    <!--Changed!-->
+            <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <configuration>
+                    <encoding>UTF-8</encoding>
+                </configuration>
             </plugin>
         </plugins>
 
