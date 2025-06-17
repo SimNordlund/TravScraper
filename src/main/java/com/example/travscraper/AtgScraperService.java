@@ -131,18 +131,33 @@ public class AtgScraperService {
                  Page pPage = ctx.newPage();
                  Page tPage = ctx.newPage()) {
 
-                Page.NavigateOptions nav = new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE)
-                        .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
-                        .setTimeout(60_000);
+                Page.NavigateOptions nav = new Page.NavigateOptions()       //Changed!
+                        .setWaitUntil(WaitUntilState.NETWORKIDLE)           //Changed!
+                        .setTimeout(60_000);                                //Changed!
 
                 vPage.navigate(vUrl, nav);
 
+                if (vPage.url().contains("/spel/kalender/")) {
+                    log.info("🔸 Lap {} not found for track {} on {}, redirected to calendar, skipping", lap, track, date);
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
 
-                ElementHandle first = vPage.waitForSelector(
-                        "button:has-text(\"Tillåt alla\"):visible, " +
-                                "button:has-text(\"Avvisa\"):visible, "      +
-                                "tr[data-test-id^=horse-row]",
-                        new Page.WaitForSelectorOptions().setTimeout(60_000));
+                ElementHandle first;
+                try {                                                    //Changed!
+                    first = vPage.waitForSelector(
+                            "button:has-text(\"Tillåt alla\"):visible, " +
+                                    "button:has-text(\"Avvisa\"):visible, " +
+                                    "tr[data-test-id^=horse-row]",
+                            new Page.WaitForSelectorOptions().setTimeout(60_000));
+                } catch (PlaywrightException e) {                        //Changed!
+                    if (e.getMessage().contains("Timeout")) {            //Changed!
+                        log.info("⏩ Lap {} saknas för {} {}, hoppar vidare", lap, track, date); //Changed!
+                        if (++consecutiveMisses >= 2) break;             //Changed!
+                        continue;                                        //Changed!
+                    }
+                    throw e; // annat fel – bubbla up
+                }
 
 // if the thing we got back is a button → click it, then wait for table
                 if ("BUTTON".equalsIgnoreCase(first.evaluate("e => e.tagName").toString())) {
@@ -180,10 +195,13 @@ public class AtgScraperService {
                 try {
                     vPage.waitForSelector("tr[data-test-id^=horse-row]",
                             new Page.WaitForSelectorOptions().setTimeout(60_000));
-                } catch (PlaywrightException te) {
-                    log.info("🔸 No result table for {} {} lap {}, continuing", track, date, lap);
-                    if (++consecutiveMisses >= 2) break;
-                    continue;
+                } catch (PlaywrightException e) {
+                    log.warn("⚠️  Playwright-fel på {}: {}", vUrl, e.getMessage());
+                    if (e.getMessage().contains("Timeout")) {        //Changed!
+                        if (++consecutiveMisses >= 2) break;         //Changed!
+                        continue;                                    //Changed!
+                    }
+                    break; // annat fel – ge upp banan
                 }
 
                 if (!isCorrectTrack(vPage, track, date)) return;
@@ -211,9 +229,13 @@ public class AtgScraperService {
                 parseAndPersist(vPage.content(), date, track, lap, pMap, trioMap);
                 Thread.sleep(600 + (int) (Math.random() * 1200));
 
-            } catch (PlaywrightException e) {
-                log.warn("⚠️  Playwright issue on {}: {}", vUrl, e.getMessage());
-                break;
+            } catch (PlaywrightException e) {                       //Changed!
+                log.warn("⚠️  Playwright-fel på {}: {}", vUrl, e.getMessage()); //Changed!
+                if (e.getMessage().contains("Timeout")) {           //Changed!
+                    if (++consecutiveMisses >= 2) break;            //Changed!
+                    continue;                                       //Changed!
+                }                                                   //Changed!
+                break; // annat fel – ge upp banan
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 return;
