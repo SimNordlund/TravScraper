@@ -1,6 +1,7 @@
 package com.example.travscraper;
 
 import com.example.travscraper.entity.ScrapedHorse;
+import com.example.travscraper.entity.ScrapedHorseKey;
 import com.example.travscraper.repo.ScrapedHorseRepo;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.WaitForSelectorState;
@@ -277,35 +278,56 @@ public class AtgScraperService {
     }
 
     private void parseAndPersist(String html, LocalDate date, String track, int lap,
-                                 Map<String,String> pMap, Map<String,String> trioMap) {
+                                 Map<String, String> pMap, Map<String, String> trioMap) {
 
         Elements rows = Jsoup.parse(html).select("tr[data-test-id^=horse-row]");
         if (rows.isEmpty()) return;
 
-        List<ScrapedHorse> horses = new ArrayList<>();
+        List<ScrapedHorse> horsesToSave = new ArrayList<>();
+
         for (Element tr : rows) {
             Element place = tr.selectFirst("[data-test-id=horse-placement]");
             Element split = tr.selectFirst("[startlist-export-id^=startlist-cell-horse-split-export]");
             Element vOdd  = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
             if (place == null || split == null || vOdd == null) continue;
 
-            String[] parts = split.text().trim().split("\\s+",2);
-            String nr   = parts.length>0?parts[0]:"";
-            String name = parts.length>1?parts[1]:"";
+            String[] parts = split.text().trim().split("\\s+", 2);
+            String nr   = parts.length > 0 ? parts[0] : "";
+            String name = parts.length > 1 ? parts[1] : "";
 
             String bankode = FULLNAME_TO_BANKODE.getOrDefault(slugify(track), track);
 
-            horses.add(ScrapedHorse.builder()
-                    .date(date).track(bankode).lap(String.valueOf(lap))
-                    .numberOfHorse(nr).nameOfHorse(name).placement(place.text().trim())
-                    .vOdds(vOdd.text().trim())
-                    .pOdds(pMap  .getOrDefault(nr,""))
-                    .trioOdds(trioMap.getOrDefault(nr,""))
-                    .build());
+            // Construct composite key
+            ScrapedHorseKey key = new ScrapedHorseKey(date, bankode, String.valueOf(lap), nr);
+
+            // Fetch existing entry if any
+            Optional<ScrapedHorse> existingHorseOpt = repo.findById(key);
+
+            ScrapedHorse horse;
+            if (existingHorseOpt.isPresent()) {
+                horse = existingHorseOpt.get();
+                // Update existing record
+                horse.setNameOfHorse(name);
+                horse.setPlacement(place.text().trim());
+                horse.setVOdds(vOdd.text().trim());
+                horse.setPOdds(pMap.getOrDefault(nr, ""));
+                horse.setTrioOdds(trioMap.getOrDefault(nr, ""));
+            } else {
+                // Insert new record
+                horse = ScrapedHorse.builder()
+                        .date(date).track(bankode).lap(String.valueOf(lap))
+                        .numberOfHorse(nr).nameOfHorse(name).placement(place.text().trim())
+                        .vOdds(vOdd.text().trim())
+                        .pOdds(pMap.getOrDefault(nr, ""))
+                        .trioOdds(trioMap.getOrDefault(nr, ""))
+                        .build();
+            }
+
+            horsesToSave.add(horse);
         }
 
-        repo.saveAll(horses);
-        log.info("💾 Saved {} horses for {} {} lap {}", horses.size(), date, track, lap);
+        repo.saveAll(horsesToSave);
+        log.info("💾 Saved {} horses for {} {} lap {}", horsesToSave.size(), date, track, lap);
     }
 
     private static String slugify(String s) {
