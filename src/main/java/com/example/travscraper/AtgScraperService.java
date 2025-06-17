@@ -220,7 +220,7 @@ public class AtgScraperService {
 
                 tPage.waitForSelector("text=\"Rätt kombination:\"",
                         new Page.WaitForSelectorOptions()
-                                .setTimeout(5_000)
+                                .setTimeout(60_000)
                                 .setState(WaitForSelectorState.ATTACHED));
 
                 Map<String,String> pMap   = extractOddsMap(pPage, "[data-test-id=startlist-cell-podds]");
