@@ -359,7 +359,6 @@ public class AtgScraperService {
     }
 
     /*  bankod-tabellen oförändrad  */
-    //Bro Park?
     private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
             Map.entry("arvika", "Ar"), Map.entry("axevalla", "Ax"),
             Map.entry("bergsaker", "B"), Map.entry("boden", "Bo"),
