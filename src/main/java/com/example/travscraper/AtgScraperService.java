@@ -77,7 +77,6 @@ public class AtgScraperService {
         }
     }
 
-
     private void processDateTrack(LocalDate date, String track) {
 
         /* ── create context once per job (keeps consent-cookie) ── */
