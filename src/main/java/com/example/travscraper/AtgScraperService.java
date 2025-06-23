@@ -62,7 +62,7 @@ public class AtgScraperService {
     }
 
     /* ───────────── scheduler ───────────── */
-    @Scheduled(cron = "0 0 * * * *", zone = "Europe/Stockholm")
+    /*@Scheduled(cron = "0 0 * * * *", zone = "Europe/Stockholm")
     public void scrape() {
         if (!lock.tryLock()) {
             log.warn("⏳ Previous scrape still running – skipping");
@@ -72,6 +72,29 @@ public class AtgScraperService {
             LocalDate target = LocalDate.now(ZoneId.of("Europe/Stockholm")).minusDays(1);
             log.info("📆  Scraping {}", target);
             props.getTracks().forEach(t -> processDateTrack(target, t));
+        } finally {
+            lock.unlock();
+        }
+    } */
+
+    @Scheduled(cron = "0 0 * * * *", zone = "Europe/Stockholm")
+    public void scrape() {
+        if (!lock.tryLock()) {
+            log.warn("⏳ Previous scrape still running – skipping");
+            return;
+        }
+        try {
+            LocalDate end   = Optional.ofNullable(props.getEndDate())
+                    .orElse(LocalDate.now(ZoneId.of("Europe/Stockholm"))
+                            .minusDays(1));
+            LocalDate start = Optional.ofNullable(props.getStartDate())
+                    .orElse(end.minusDays(6));
+
+            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                log.info("📆  Scraping {}", date);
+                LocalDate finalDate = date;
+                props.getTracks().forEach(track -> processDateTrack(finalDate, track));
+            }
         } finally {
             lock.unlock();
         }
