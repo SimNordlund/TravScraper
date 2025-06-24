@@ -37,7 +37,7 @@ public class AtgScraperService {
 
     private Playwright    playwright;
     private Browser       browser;
-    private BrowserContext ctx;                   //  ⇦  persistent context (keeps cookies)
+    private BrowserContext ctx;
 
     private final ReentrantLock lock = new ReentrantLock();
 
@@ -77,7 +77,7 @@ public class AtgScraperService {
         }
     } */
 
-    @Scheduled(cron = "0 0 * * * *", zone = "Europe/Stockholm")
+    @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
     public void scrape() {
         if (!lock.tryLock()) {
             log.warn("⏳ Previous scrape still running – skipping");
