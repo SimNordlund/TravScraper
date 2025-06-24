@@ -14,8 +14,8 @@ public class ScraperProperties {
             "romme", "mantorp", "farjestad", "skelleftea", "eskilstuna",
             "jagersro", "bollnas", "solvalla", "bergaker", "orebro");
 
-    private LocalDate startDate = LocalDate.now().minusDays(4);
-    private LocalDate endDate = LocalDate.now().minusDays(3);
+    private LocalDate startDate = LocalDate.now().minusDays(1);
+    private LocalDate endDate = LocalDate.now().minusDays(1);
 
     public List<String> getTracks() { return tracks; }
     public void setTracks(List<String> tracks) { this.tracks = tracks; }
