@@ -5,8 +5,8 @@ scraper:
     lycksele, mantorp, oviken, romme, rattvik, skelleftea, solvalla, solanget,
     tingsryd, umea, vaggeryd, visby, aby, amal, arjang, orebro, ostersund
   ]
-  start-date: 2025-05-22
-  end-date: 2025-06-22
+  start-date: 2025-06-20
+  end-date: 2025-06-23
 
 spring:
   main:
