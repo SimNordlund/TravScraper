@@ -17,6 +17,7 @@ public class ScraperProperties {
     private LocalDate startDate = LocalDate.now().minusDays(0);
     private LocalDate endDate = LocalDate.now().minusDays(0);
 
+    
     public List<String> getTracks() { return tracks; }
     public void setTracks(List<String> tracks) { this.tracks = tracks; }
     public LocalDate getStartDate() { return startDate; }

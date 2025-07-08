@@ -20,7 +20,7 @@ public class TravScraperApplication implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        service.scrape();          // runs once, then JVM exits
+        service.scrape();
     }
 }
 
