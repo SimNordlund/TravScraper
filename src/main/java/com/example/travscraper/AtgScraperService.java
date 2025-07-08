@@ -44,7 +44,7 @@ public class AtgScraperService {
     private static final DateTimeFormatter URL_DATE_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    /* ───────────── lifecycle ───────────── */
+
     @PostConstruct
     void initBrowser() {
         playwright = Playwright.create();
@@ -102,7 +102,6 @@ public class AtgScraperService {
 
     private void processDateTrack(LocalDate date, String track) {
 
-        /* ── create context once per job (keeps consent-cookie) ── */
         if (ctx == null) {
             ctx = browser.newContext(
                     new Browser.NewContextOptions()
@@ -116,7 +115,7 @@ public class AtgScraperService {
                                             "Chrome/125.0.0.0 Safari/537.36")
             );
 
-// runs on every navigation
+
             ctx.addInitScript("""
   () => {
     const tryClick = () => {
@@ -178,13 +177,13 @@ public class AtgScraperService {
                         if (++consecutiveMisses >= 2) break;
                         continue;
                     }
-                    throw e; // annat fel – bubbla up
+                    throw e;
                 }
 
-// if the thing we got back is a button → click it, then wait for table
+
                 if ("BUTTON".equalsIgnoreCase(first.evaluate("e => e.tagName").toString())) {
-                    first.click();                           // dismiss banner
-                    vPage.waitForSelector("tr[data-test-id^=horse-row]",   // now wait for table
+                    first.click();
+                    vPage.waitForSelector("tr[data-test-id^=horse-row]",
                             new Page.WaitForSelectorOptions().setTimeout(60_000));
                 }
 
@@ -193,7 +192,7 @@ public class AtgScraperService {
                         new Page.WaitForSelectorOptions().setTimeout(60_000)
                 );
 
-                if (System.getenv("FLY_APP_NAME") != null) {            // only in Fly
+                if (System.getenv("FLY_APP_NAME") != null) {            //fly.iooo
                     try {
                         vPage.screenshot(new Page.ScreenshotOptions()
                                 .setPath(Paths.get("/app/debug-vpage.png"))
@@ -223,7 +222,7 @@ public class AtgScraperService {
                         if (++consecutiveMisses >= 2) break;
                         continue;
                     }
-                    break; // annat fel – ge upp banan
+                    break;
                 }
 
                 if (!isCorrectTrack(vPage, track, date)) return;
@@ -257,7 +256,7 @@ public class AtgScraperService {
                     if (++consecutiveMisses >= 2) break;
                     continue;
                 }
-                break; // annat fel – ge upp banan
+                break;
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 return;
@@ -341,23 +340,23 @@ public class AtgScraperService {
 
             String bankode = FULLNAME_TO_BANKODE.getOrDefault(slugify(track), track);
 
-            // Construct composite key
+
             ScrapedHorseKey key = new ScrapedHorseKey(date, bankode, String.valueOf(lap), nr);
 
-            // Fetch existing entry if any
+
             Optional<ScrapedHorse> existingHorseOpt = repo.findById(key);
 
             ScrapedHorse horse;
             if (existingHorseOpt.isPresent()) {
                 horse = existingHorseOpt.get();
-                // Update existing record
+
                 horse.setNameOfHorse(name);
                 horse.setPlacement(place.text().trim());
                 horse.setVOdds(vOdd.text().trim());
                 horse.setPOdds(pMap.getOrDefault(nr, ""));
                 horse.setTrioOdds(trioMap.getOrDefault(nr, ""));
             } else {
-                // Insert new record
+
                 horse = ScrapedHorse.builder()
                         .date(date).track(bankode).lap(String.valueOf(lap))
                         .numberOfHorse(nr).nameOfHorse(name).placement(place.text().trim())
@@ -380,7 +379,6 @@ public class AtgScraperService {
                 .toLowerCase();
     }
 
-    /*  bankod-tabellen oförändrad  */
     private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
             Map.entry("arvika", "Ar"), Map.entry("axevalla", "Ax"),
             Map.entry("bergsaker", "B"), Map.entry("boden", "Bo"),
