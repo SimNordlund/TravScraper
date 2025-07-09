@@ -132,9 +132,9 @@ public class AtgScraperService {
         if (btn) btn.click();
       } catch (_) { /* ignore shadow-DOM issues */ }
     };
-    tryClick();                  // immediately
-    setTimeout(tryClick, 400);   // in case banner slides in late
-    setTimeout(tryClick, 4000);  // one more try
+    tryClick();                  
+    setTimeout(tryClick, 400);   
+    setTimeout(tryClick, 4000);
   }
 """);
         }
