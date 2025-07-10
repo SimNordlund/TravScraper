@@ -1,5 +1,7 @@
 package com.example.travscraper;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -8,6 +10,8 @@ import java.util.List;
 
 @Configuration
 @ConfigurationProperties(prefix = "scraper")
+@Getter
+@Setter
 public class ScraperProperties {
 
     private List<String> tracks = List.of(
@@ -16,12 +20,4 @@ public class ScraperProperties {
 
     private LocalDate startDate = LocalDate.now().minusDays(1);
     private LocalDate endDate = LocalDate.now().minusDays(0);
-
-    
-    public List<String> getTracks() { return tracks; }
-    public void setTracks(List<String> tracks) { this.tracks = tracks; }
-    public LocalDate getStartDate() { return startDate; }
-    public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
-    public LocalDate getEndDate() { return endDate; }
-    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
 }
