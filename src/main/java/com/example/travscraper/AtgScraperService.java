@@ -77,7 +77,7 @@ public class AtgScraperService {
         }
     } */
 
-    @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
+    @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm") //TODO KÖRA --schedule via fly istället?
     public void scrape() {
         if (!lock.tryLock()) {
             log.warn("⏳ Previous scrape still running – skipping");
@@ -192,7 +192,7 @@ public class AtgScraperService {
                         new Page.WaitForSelectorOptions().setTimeout(60_000)
                 );
 
-                if (System.getenv("FLY_APP_NAME") != null) {            //fly.iooo
+                if (System.getenv("FLY_APP_NAME") != null) {
                     try {
                         vPage.screenshot(new Page.ScreenshotOptions()
                                 .setPath(Paths.get("/app/debug-vpage.png"))
@@ -264,7 +264,6 @@ public class AtgScraperService {
         }
     }
 
-    /* ───────────── helpers (unchanged) ───────────── */
     private boolean isCancelledRace(Page page) {
         return Jsoup.parse(page.content())
                 .selectFirst("span[class*=cancelledRace], span:matchesOwn(Inställt\\,?\\s+insatser)") != null;
