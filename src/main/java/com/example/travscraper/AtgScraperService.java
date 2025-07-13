@@ -198,7 +198,7 @@ public class AtgScraperService {
                                 .setPath(Paths.get("/app/debug-vpage.png"))
                                 .setFullPage(true));
                         Files.writeString(Path.of("/app/debug-vpage.html"), vPage.content());
-                        log.info("📸 saved /app/debug-vpage.png + .html"); //TODO TA BORT SPARA NER ELLER EJ? BÄTTRE PRESTANDA?
+                        log.info("📸 saved /app/debug-vpage.png + .html"); //TODO TA BORT SPARA NER ELLER EJ?
                     } catch (Exception e) {
                         log.warn("debug dump failed", e);
                     }
