@@ -88,7 +88,7 @@ public class AtgScraperService {
                     .orElse(LocalDate.now(ZoneId.of("Europe/Stockholm"))
                             .minusDays(0));
             LocalDate start = Optional.ofNullable(props.getStartDate())
-                    .orElse(end.minusDays(10));
+                    .orElse(end.minusDays(0));
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 log.info("📆  Scraping {}", date);
