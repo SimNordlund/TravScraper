@@ -192,7 +192,7 @@ public class AtgScraperService {
                         new Page.WaitForSelectorOptions().setTimeout(60_000)
                 );
 
-                if (System.getenv("FLY_APP_NAME") != null) { //BARA KICKA DENNA?? UTKOMMENTERA BARA KANSKE?
+             /*   if (System.getenv("FLY_APP_NAME") != null) { //BARA KICKA DENNA?? UTKOMMENTERA BARA KANSKE?
                     try {
                         vPage.screenshot(new Page.ScreenshotOptions()
                                 .setPath(Paths.get("/app/debug-vpage.png"))
@@ -202,7 +202,7 @@ public class AtgScraperService {
                     } catch (Exception e) {
                         log.warn("debug dump failed", e);
                     }
-                }
+                } */
 
                 pPage.navigate(pUrl, nav);
                 tPage.navigate(tUrl, nav);
