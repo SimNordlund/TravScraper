@@ -88,7 +88,7 @@ public class AtgScraperService {
                     .orElse(LocalDate.now(ZoneId.of("Europe/Stockholm"))
                             .minusDays(0));
             LocalDate start = Optional.ofNullable(props.getStartDate())
-                    .orElse(end.minusDays(0));
+                    .orElse(end.minusDays(10));
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 log.info("📆  Scraping {}", date);
@@ -192,7 +192,7 @@ public class AtgScraperService {
                         new Page.WaitForSelectorOptions().setTimeout(60_000)
                 );
 
-                if (System.getenv("FLY_APP_NAME") != null) {
+                if (System.getenv("FLY_APP_NAME") != null) { //BARA KICKA DENNA?? UTKOMMENTERA BARA KANSKE?
                     try {
                         vPage.screenshot(new Page.ScreenshotOptions()
                                 .setPath(Paths.get("/app/debug-vpage.png"))
