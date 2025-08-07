@@ -15,8 +15,10 @@ import java.util.List;
 public class ScraperProperties {
 
     private List<String> tracks = List.of(
-            "romme", "mantorp", "farjestad", "skelleftea", "eskilstuna",
-            "jagersro", "bollnas", "solvalla", "bergaker", "orebro");
+            "arvika, axevalla, bergsaker, boden, bollnas, dannero, eskilstuna, farjestad," +
+                    "gavle, hagmyren, halmstad, hoting, jagersro, kalmar, karlshamn, lindesberg," +
+                    "lycksele, mantorp, oviken, romme, rattvik, skelleftea, solvalla, solanget," +
+                    "tingsryd, umea, vaggeryd, visby, aby, amal, arjang, orebro, ostersund");
 
     private LocalDate startDate = LocalDate.now().minusDays(2);
     private LocalDate endDate = LocalDate.now().minusDays(1);
