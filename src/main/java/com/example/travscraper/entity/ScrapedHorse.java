@@ -12,18 +12,19 @@ import java.time.LocalDate;
                 columnNames = { "date", "track", "lap", "number_of_horse" })
 )
 @IdClass(ScrapedHorseKey.class)
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ScrapedHorse {
 
     @Id
     private LocalDate date;
-
     @Id
     private String track;
-
     @Id
     private String lap;
-
     @Id
     private String numberOfHorse;
 
