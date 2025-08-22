@@ -5,7 +5,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-
 @SpringBootApplication
 @EnableScheduling
 public class TravScraperApplication implements CommandLineRunner {
@@ -21,10 +20,6 @@ public class TravScraperApplication implements CommandLineRunner {
     @Override
     public void run(String... args) {
         service.scrape();
+        service.scrapeFuture();
     }
 }
-
-
-
-
-
