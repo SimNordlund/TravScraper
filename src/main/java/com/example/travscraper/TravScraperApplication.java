@@ -19,7 +19,7 @@ public class TravScraperApplication implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        service.scrape();
+        //service.scrape();
         service.scrapeFuture();
     }
 }

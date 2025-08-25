@@ -89,7 +89,7 @@ public class AtgScraperService {
     }
 
     /* ───────────── scheduler: framtid/aktuell startlista → future_horse ───────────── */
-    @Scheduled(cron = "0 0 */2 * * *", zone = "Europe/Stockholm")
+    @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
     public void scrapeFuture() {
         if (!lock.tryLock()) {
             log.warn("⏳ Previous scrape still running – skipping (future)");
