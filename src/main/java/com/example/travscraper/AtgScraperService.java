@@ -72,10 +72,10 @@ public class AtgScraperService {
             return;
         }
         try {
-            LocalDate end   = Optional.ofNullable(props.getEndDate())
+            LocalDate end   = Optional.ofNullable(props.getEndDateResults())
                     .orElse(LocalDate.now(ZoneId.of("Europe/Stockholm"))
                             .minusDays(0));
-            LocalDate start = Optional.ofNullable(props.getStartDate())
+            LocalDate start = Optional.ofNullable(props.getStartDateResults())
                     .orElse(end.minusDays(0));
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
@@ -96,9 +96,9 @@ public class AtgScraperService {
             return;
         }
         try {
-            LocalDate end   = Optional.ofNullable(props.getEndDate())
+            LocalDate end   = Optional.ofNullable(props.getEndDateFuture())
                     .orElse(LocalDate.now(ZoneId.of("Europe/Stockholm")));
-            LocalDate start = Optional.ofNullable(props.getStartDate())
+            LocalDate start = Optional.ofNullable(props.getStartDateFuture())
                     .orElse(end);
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
