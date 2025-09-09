@@ -20,9 +20,9 @@ public class ScraperProperties {
                     "lycksele, mantorp, oviken, romme, rattvik, skelleftea, solvalla, solanget," +
                     "tingsryd, umea, vaggeryd, visby, aby, amal, arjang, orebro, ostersund");
 
-    private LocalDate startDateFuture = LocalDate.now().minusDays(0);
+    private LocalDate startDateFuture = LocalDate.now().minusDays(1);
     private LocalDate endDateFuture = LocalDate.now().minusDays(0);
 
-    private LocalDate startDateResults = LocalDate.now().minusDays(2); //329
-    private LocalDate endDateResults = LocalDate.now().minusDays(1); //295
+    private LocalDate startDateResults = LocalDate.now().minusDays(1);
+    private LocalDate endDateResults = LocalDate.now().minusDays(1);
 }
