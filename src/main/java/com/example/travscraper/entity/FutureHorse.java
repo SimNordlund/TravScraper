@@ -5,35 +5,35 @@ import lombok.*;
 
 import java.time.LocalDate;
 
-@Entity //Changed!
-@Table( //Changed!
-        name = "future_horse", //Changed!
-        uniqueConstraints = @UniqueConstraint( //Changed!
-                columnNames = {"date", "track", "lap", "number_of_horse"} //Changed!
+@Entity
+@Table(
+        name = "future_horse",
+        uniqueConstraints = @UniqueConstraint(
+                columnNames = {"date", "track", "lap", "number_of_horse"}
         )
 )
-@Getter //Changed!
-@Setter //Changed!
-@NoArgsConstructor //Changed!
-@AllArgsConstructor //Changed!
-@Builder //Changed!
-public class FutureHorse { //Changed!
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class FutureHorse {
 
-    @Id //Changed!
-    @GeneratedValue(strategy = GenerationType.IDENTITY) //Changed!
-    private Long id; //Changed!
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    private LocalDate date; //Changed!
-    private String lap; //Changed!
+    private LocalDate date;
+    private String lap;
 
-    @Column(name = "name_of_horse") //Changed!
-    private String nameOfHorse; //Changed!
+    @Column(name = "name_of_horse")
+    private String nameOfHorse;
 
-    @Column(name = "number_of_horse") //Changed!
-    private String numberOfHorse; //Changed!
+    @Column(name = "number_of_horse")
+    private String numberOfHorse;
 
-    @Column(name = "v_odds") //Changed!
-    private String vOdds; //Changed!
+    @Column(name = "v_odds")
+    private String vOdds;
 
-    private String track; //Changed!
+    private String track;
 }
