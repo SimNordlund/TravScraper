@@ -18,7 +18,7 @@ public class ScraperProperties {
             "arvika, axevalla, bergsaker, boden, bollnas, dannero, eskilstuna, farjestad," +
                     "gavle, hagmyren, halmstad, hoting, jagersro, kalmar, karlshamn, lindesberg," +
                     "lycksele, mantorp, oviken, romme, rattvik, skelleftea, solvalla, solanget," +
-                    "tingsryd, umea, vaggeryd, visby, aby, amal, arjang, orebro, ostersund");
+                    "tingsryd, umea, vaggeryd, visby, aby, amal, arjang, orebro, ostersund"); // DENNNA FUNGERAR EJ?
 
     private List<String> tracks1337 = List.of(
             "bollnas, eskilstuna");
