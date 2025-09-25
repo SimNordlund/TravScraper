@@ -7,6 +7,9 @@ import com.example.travscraper.repo.ScrapedHorseRepo;
 import com.example.travscraper.entity.FutureHorse;
 import com.example.travscraper.repo.FutureHorseRepo;
 
+// Changed!
+import com.example.travscraper.repo.StartListHorseRepo;
+
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.microsoft.playwright.options.WaitUntilState;
@@ -37,6 +40,7 @@ public class AtgScraperService {
     private final ScraperProperties props;
     private final ScrapedHorseRepo  repo;
     private final FutureHorseRepo   futureRepo;
+    private final StartListHorseRepo startListRepo;
 
     private Playwright    playwright;
     private Browser       browser;
@@ -47,6 +51,58 @@ public class AtgScraperService {
     private static final DateTimeFormatter URL_DATE_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
+    private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
+            Map.entry("arvika", "Ar"), Map.entry("axevalla", "Ax"),
+            Map.entry("bergsaker", "B"), Map.entry("boden", "Bo"),
+            Map.entry("bollnas", "Bs"), Map.entry("dannero", "D"),
+            Map.entry("dala jarna", "Dj"), Map.entry("eskilstuna", "E"),
+            Map.entry("jagersro", "J"), Map.entry("farjestad", "F"),
+            Map.entry("gavle", "G"), Map.entry("goteborg trav", "Gt"),
+            Map.entry("hagmyren", "H"), Map.entry("halmstad", "Hd"),
+            Map.entry("hoting", "Hg"), Map.entry("karlshamn", "Kh"),
+            Map.entry("kalmar", "Kr"), Map.entry("lindesberg", "L"),
+            Map.entry("lycksele", "Ly"), Map.entry("mantorp", "Mp"),
+            Map.entry("oviken", "Ov"), Map.entry("romme", "Ro"),
+            Map.entry("rattvik", "Rä"), Map.entry("solvalla", "S"),
+            Map.entry("skelleftea", "Sk"), Map.entry("solanget", "Sä"),
+            Map.entry("tingsryd", "Ti"), Map.entry("taby trav", "Tt"),
+            Map.entry("umaker", "U"), Map.entry("vemdalen", "Vd"),
+            Map.entry("vaggeryd", "Vg"), Map.entry("visby", "Vi"),
+            Map.entry("aby", "Å"), Map.entry("amal", "Åm"),
+            Map.entry("arjang", "År"), Map.entry("orebro", "Ö"),
+            Map.entry("ostersund", "Ös")
+    );
+
+    private static final Map<String, String> BANKODE_TO_SLUG;
+    static {
+        Map<String, String> m = new HashMap<>();
+        FULLNAME_TO_BANKODE.forEach((slug, code) -> m.put(code, slug));
+        BANKODE_TO_SLUG = Collections.unmodifiableMap(m);
+    }
+
+
+    private static int toYyyymmdd(LocalDate d) {
+        return d.getYear() * 10000 + d.getMonthValue() * 100 + d.getDayOfMonth();
+    }
+
+    private List<String> tracksFor(LocalDate date) {
+        int yyyymmdd = toYyyymmdd(date);
+        List<String> codes = startListRepo.findDistinctBanKoderOn(yyyymmdd);
+        if (codes == null || codes.isEmpty()) {
+            log.info("ℹ️  Inga banor i startlista för {}", date);
+            return List.of();
+        }
+        List<String> slugs = new ArrayList<>();
+        for (String code : codes) {
+            String slug = BANKODE_TO_SLUG.get(code);
+            if (slug == null || slug.isBlank()) {
+                log.warn("⚠️  Okänd bankod '{}' för {}, hoppar den banan", code, date);
+                continue;
+            }
+            slugs.add(slug);
+        }
+        return slugs;
+    }
 
     @PostConstruct
     void initBrowser() {
@@ -80,8 +136,10 @@ public class AtgScraperService {
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 log.info("📆  Scraping RESULTS {}", date);
-                LocalDate finalDate = date;
-                props.getTracks().forEach(track -> processDateTrack(finalDate, track));
+                List<String> tracks = tracksFor(date);
+                for (String track : tracks) {
+                    processDateTrack(date, track);
+                }
             }
         } finally {
             lock.unlock();
@@ -103,8 +161,10 @@ public class AtgScraperService {
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 log.info("📆  Scraping FUTURE {}", date);
-                LocalDate finalDate = date;
-                props.getTracks().forEach(track -> processDateTrackFuture(finalDate, track));
+                List<String> tracks = tracksFor(date);
+                for (String track : tracks) {
+                    processDateTrackFuture(date, track);
+                }
             }
         } finally {
             lock.unlock();
@@ -317,7 +377,7 @@ public class AtgScraperService {
                     continue;
                 }
 
-                try { // vänta på tabell eller cookie-knapp
+                try {
                     ElementHandle first = page.waitForSelector(
                             "button:has-text(\"Tillåt alla\"):visible, " +
                                     "button:has-text(\"Avvisa\"):visible, " +
@@ -480,7 +540,6 @@ public class AtgScraperService {
         Set<String> seen = new HashSet<>();
 
         for (Element tr : rows) {
-            // number_of_horse – robust: knapp-attribut → split-export → text
             String nr = extractStartNumber(tr);
             if (nr.isBlank()) {
                 log.debug("⏭️  Skipping row without start number {} {} lap {}", date, track, lap);
@@ -491,7 +550,6 @@ public class AtgScraperService {
                 continue;
             }
 
-            // name_of_horse – ta bort ledande startnummer om vi läser från split-export
             Element split = tr.selectFirst("[startlist-export-id^=startlist-cell-horse-split-export]");
             String name;
             if (split != null) {
@@ -501,7 +559,6 @@ public class AtgScraperService {
                 name = tr.text();
             }
 
-            // v_odds
             Element vOddEl = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
             String vOdds = vOddEl != null ? vOddEl.text().trim() : "";
 
@@ -536,7 +593,6 @@ public class AtgScraperService {
             log.warn("🔁 saveAll collided with unique constraint, retrying per row (future) on {} {} lap {}", date, track, lap);
             for (FutureHorse fh : toSave) {
                 try {
-                    // upsert per rad
                     Optional<FutureHorse> existing = futureRepo.findByDateAndTrackAndLapAndNumberOfHorse(
                             fh.getDate(), fh.getTrack(), fh.getLap(), fh.getNumberOfHorse());
                     if (existing.isPresent()) {
@@ -556,7 +612,6 @@ public class AtgScraperService {
         log.info("💾 (future) Saved/updated {} horses for {} {} lap {}", toSave.size(), date, track, lap);
     }
 
-    // Robust extrahering av startnummer
     private String extractStartNumber(Element tr) {
         Element numBtn = tr.selectFirst("button[data-test-start-number]");
         if (numBtn != null) {
@@ -581,26 +636,4 @@ public class AtgScraperService {
                 .replaceAll("\\p{M}", "")
                 .toLowerCase();
     }
-
-    private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
-            Map.entry("arvika", "Ar"), Map.entry("axevalla", "Ax"),
-            Map.entry("bergsaker", "B"), Map.entry("boden", "Bo"),
-            Map.entry("bollnas", "Bs"), Map.entry("dannero", "D"),
-            Map.entry("dala jarna", "Dj"), Map.entry("eskilstuna", "E"),
-            Map.entry("jagersro", "J"), Map.entry("farjestad", "F"),
-            Map.entry("gavle", "G"), Map.entry("goteborg trav", "Gt"),
-            Map.entry("hagmyren", "H"), Map.entry("halmstad", "Hd"),
-            Map.entry("hoting", "Hg"), Map.entry("karlshamn", "Kh"),
-            Map.entry("kalmar", "Kr"), Map.entry("lindesberg", "L"),
-            Map.entry("lycksele", "Ly"), Map.entry("mantorp", "Mp"),
-            Map.entry("oviken", "Ov"), Map.entry("romme", "Ro"),
-            Map.entry("rattvik", "Rä"), Map.entry("solvalla", "S"),
-            Map.entry("skelleftea", "Sk"), Map.entry("solanget", "Sä"),
-            Map.entry("tingsryd", "Ti"), Map.entry("taby trav", "Tt"),
-            Map.entry("umaker", "U"), Map.entry("vemdalen", "Vd"),
-            Map.entry("vaggeryd", "Vg"), Map.entry("visby", "Vi"),
-            Map.entry("aby", "Å"), Map.entry("amal", "Åm"),
-            Map.entry("arjang", "År"), Map.entry("orebro", "Ö"),
-            Map.entry("ostersund", "Ös")
-    );
 }

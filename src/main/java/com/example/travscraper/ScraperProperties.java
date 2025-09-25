@@ -14,23 +14,24 @@ import java.util.List;
 @Setter
 public class ScraperProperties {
 
-    private List<String> tracks = List.of(
-            "arvika, axevalla, bergsaker, boden, bollnas, dannero, eskilstuna, farjestad," +
-                    "gavle, hagmyren, halmstad, hoting, jagersro, kalmar, karlshamn, lindesberg," +
-                    "lycksele, mantorp, oviken, romme, rattvik, skelleftea, solvalla, solanget," +
-                    "tingsryd, umea, vaggeryd, visby, aby, amal, arjang, orebro, ostersund"); // DENNNA FUNGERAR EJ?
+ /*   private List<String> tracks = List.of(
+            "arvika", "axevalla", "bergsaker", "boden", "bollnas", "dannero",
+            "eskilstuna", "farjestad", "gavle", "hagmyren", "halmstad", "hoting",
+            "jagersro", "kalmar", "karlshamn", "lindesberg", "lycksele", "mantorp",
+            "oviken", "romme", "rattvik", "skelleftea", "solvalla", "solanget",
+            "tingsryd", "umaker", "vaggeryd", "visby", "aby", "amal", "arjang",
+            "orebro", "ostersund"
+    ); */
 
-    private List<String> tracks1337 = List.of(
-            "bollnas, eskilstuna");
 
-  //  private LocalDate startDateFuture = LocalDate.now().minusDays(0);
-  //  private LocalDate endDateFuture = LocalDate.now().minusDays(0);
+    private LocalDate startDateFuture = LocalDate.now().minusDays(0);
+    private LocalDate endDateFuture = LocalDate.now().minusDays(0);
 
-    private LocalDate startDateResults = LocalDate.now().minusDays(0);
-    private LocalDate endDateResults = LocalDate.now().minusDays(0);
+    private LocalDate startDateResults = LocalDate.now().minusDays(1);
+    private LocalDate endDateResults = LocalDate.now().minusDays(1);
 
-    private LocalDate startDateFuture = LocalDate.now().plusDays(1);
-    private LocalDate endDateFuture = LocalDate.now().plusDays(1);
+ //   private LocalDate startDateFuture = LocalDate.now().plusDays(1);
+ //   private LocalDate endDateFuture = LocalDate.now().plusDays(1);
 
 //    private LocalDate startDateResults = LocalDate.now().minusMonths(14);
 //    private LocalDate endDateResults = LocalDate.now().minusMonths(13);
