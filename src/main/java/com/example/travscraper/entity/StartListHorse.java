@@ -25,5 +25,4 @@ public class StartListHorse {
 
     @Column(name = "bankod")
     private String banKod;
-
 }
