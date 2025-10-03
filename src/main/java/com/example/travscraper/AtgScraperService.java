@@ -7,7 +7,6 @@ import com.example.travscraper.repo.ScrapedHorseRepo;
 import com.example.travscraper.entity.FutureHorse;
 import com.example.travscraper.repo.FutureHorseRepo;
 
-// Changed!
 import com.example.travscraper.repo.StartListHorseRepo;
 
 import com.microsoft.playwright.*;
@@ -45,9 +44,7 @@ public class AtgScraperService {
     private Playwright    playwright;
     private Browser       browser;
     private BrowserContext ctx;
-
     private final ReentrantLock lock = new ReentrantLock();
-
     private static final DateTimeFormatter URL_DATE_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -79,7 +76,6 @@ public class AtgScraperService {
         FULLNAME_TO_BANKODE.forEach((slug, code) -> m.put(code, slug));
         BANKODE_TO_SLUG = Collections.unmodifiableMap(m);
     }
-
 
     private static int toYyyymmdd(LocalDate d) {
         return d.getYear() * 10000 + d.getMonthValue() * 100 + d.getDayOfMonth();
@@ -146,7 +142,6 @@ public class AtgScraperService {
         }
     }
 
-    /* ───────────── scheduler: framtid/aktuell startlista → future_horse ───────────── */
     @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
     public void scrapeFuture() {
         if (!lock.tryLock()) {
@@ -317,7 +312,7 @@ public class AtgScraperService {
         }
     }
 
-    /* ───────────── FUTURE: vinnare-sidor utan /resultat ───────────── */
+
     private void processDateTrackFuture(LocalDate date, String track) {
         if (ctx == null) {
             ctx = browser.newContext(
@@ -531,7 +526,7 @@ public class AtgScraperService {
         log.info("💾 Saved {} horses for {} {} lap {}", horsesToSave.size(), date, track, lap);
     }
 
-    /* FUTURE: parse + spara i future_horse */
+
     private void parseAndPersistFuture(String html, LocalDate date, String track, int lap) {
         Elements rows = Jsoup.parse(html).select("tr[data-test-id^=horse-row]");
         if (rows.isEmpty()) return;
