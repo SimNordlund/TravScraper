@@ -81,6 +81,12 @@ public class AtgScraperService {
         return d.getYear() * 10000 + d.getMonthValue() * 100 + d.getDayOfMonth();
     }
 
+    private static String slugify(String s) {
+        return Normalizer.normalize(s, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase();
+    }
+
     private List<String> tracksFor(LocalDate date) {
         int yyyymmdd = toYyyymmdd(date);
         List<String> codes = startListRepo.findDistinctBanKoderOn(yyyymmdd);
@@ -116,7 +122,7 @@ public class AtgScraperService {
         if (playwright != null) playwright.close();
     }
 
-    /* ───────────── scheduler: historik/resultat → scraped_horse ───────────── */
+
     @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
     public void scrape() {
         if (!lock.tryLock()) {
@@ -624,11 +630,5 @@ public class AtgScraperService {
             if (!n.isBlank()) return n;
         }
         return "";
-    }
-
-    private static String slugify(String s) {
-        return Normalizer.normalize(s, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .toLowerCase();
     }
 }

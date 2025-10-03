@@ -12,14 +12,14 @@ import java.time.LocalDate;
 @Getter
 @Setter
 public class ScraperProperties {
-    //120-150
-    private LocalDate startDateFuture = LocalDate.now().minusDays(0);
+    //90-150
+/*    private LocalDate startDateFuture = LocalDate.now().minusDays(0);
     private LocalDate endDateFuture = LocalDate.now().minusDays(0);
     private LocalDate startDateResults = LocalDate.now().minusDays(1);
-    private LocalDate endDateResults = LocalDate.now().minusDays(1);
+    private LocalDate endDateResults = LocalDate.now().minusDays(1);*/
 
-//    private LocalDate startDateResults = LocalDate.now().minusDays(0);
-//    private LocalDate endDateResults = LocalDate.now().minusDays(0);
-//    private LocalDate startDateFuture = LocalDate.now().plusDays(1);
-//    private LocalDate endDateFuture = LocalDate.now().plusDays(1);
+    private LocalDate startDateResults = LocalDate.now().minusDays(0);
+    private LocalDate endDateResults = LocalDate.now().minusDays(0);
+    private LocalDate startDateFuture = LocalDate.now().plusDays(1);
+    private LocalDate endDateFuture = LocalDate.now().plusDays(1);
 }
