@@ -11,7 +11,9 @@ public class TravScraperApplication implements CommandLineRunner {
 
     private final AtgScraperService service;
 
-    public TravScraperApplication(AtgScraperService svc) { this.service = svc; }
+    public TravScraperApplication(AtgScraperService svc) {
+        this.service = svc;
+    }
 
     public static void main(String[] args) {
         SpringApplication.run(TravScraperApplication.class, args);
