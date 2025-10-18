@@ -67,7 +67,7 @@ public class AtgScraperService {
             Map.entry("vaggeryd", "Vg"), Map.entry("visby", "Vi"),
             Map.entry("aby", "Å"), Map.entry("amal", "Åm"),
             Map.entry("arjang", "År"), Map.entry("orebro", "Ö"),
-            Map.entry("ostersund", "Ös")
+            Map.entry("ostersund", "Ös"), Map.entry("bjerke", "Bj")
     );
 
     private static final Map<String, String> BANKODE_TO_SLUG;
@@ -88,6 +88,8 @@ public class AtgScraperService {
     }
 
     private List<String> tracksFor(LocalDate date) {
+        //List<String> codes = new ArrayList<>(); Hårdkodat, nödfall.
+        //codes.add("Bj"); etc.
         int yyyymmdd = toYyyymmdd(date);
         List<String> codes = startListRepo.findDistinctBanKoderOn(yyyymmdd);
         if (codes == null || codes.isEmpty()) {
