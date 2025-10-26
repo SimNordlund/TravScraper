@@ -14,9 +14,9 @@ import java.time.LocalDate;
 public class ScraperProperties {
     //70-150 skrapade för results
     //71-0 för future
-    private LocalDate startDateFuture = LocalDate.now().minusDays(0);
+    private LocalDate startDateFuture = LocalDate.now().minusDays(5);
     private LocalDate endDateFuture = LocalDate.now().minusDays(0);
-    private LocalDate startDateResults = LocalDate.now().minusDays(1);
+    private LocalDate startDateResults = LocalDate.now().minusDays(5);
     private LocalDate endDateResults = LocalDate.now().minusDays(1);
 
     /*private LocalDate startDateResults = LocalDate.now().minusDays(0);

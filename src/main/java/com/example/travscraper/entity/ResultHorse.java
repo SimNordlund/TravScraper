@@ -8,8 +8,6 @@ import org.hibernate.annotations.Immutable;
 
 
 import jakarta.persistence.Column;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 
 @Entity
 @Table(name = "resultat")
@@ -21,38 +19,38 @@ import jakarta.persistence.GenerationType;
 @Builder
 public class ResultHorse {
     @Id
-    //Behövs nedan strategy?
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
     private Long id;
 
-    @Column(name = "datum", nullable = false)
+    @Column(name = "datum")
     private Integer datum;
 
-    @Column(name = "bankod", length = 2, nullable = false)
+    @Column(name = "bankod")
     private String bankod;
 
-    @Column(name = "lopp", nullable = false)
+    @Column(name = "lopp")
     private Integer lopp;
 
-    @Column(name = "nr", nullable = false)
+    @Column(name = "nr")
     private Integer nr;
 
-    @Column(name = "namn", length = 50, nullable = false)
+    @Column(name = "namn")
     private String namn;
 
     @Column(name = "distans")
     private Integer distans;
 
+    @Column(name = "spar")
+    private Integer spar;
+
     @Column(name = "placering")
     private Integer placering;
 
     @Column(name = "tid")
-    private Float tid;
+    private Double tid;
 
-    @Column(name = "startmetod", length = 1)
+    @Column(name = "startmetod")
     private String startmetod;
 
-    @Column(name = "galopp", length = 1)
+    @Column(name = "galopp") //denna behövs nog ej
     private String galopp;
 }
