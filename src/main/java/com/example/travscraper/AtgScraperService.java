@@ -41,8 +41,8 @@ public class AtgScraperService {
     private final FutureHorseRepo   futureRepo;
     private final StartListHorseRepo startListRepo;
 
-    private Playwright    playwright;
-    private Browser       browser;
+    private Playwright playwright;
+    private Browser browser;
     private BrowserContext ctx;
     private final ReentrantLock lock = new ReentrantLock();
     private static final DateTimeFormatter URL_DATE_FORMAT =
@@ -67,7 +67,30 @@ public class AtgScraperService {
             Map.entry("vaggeryd", "Vg"), Map.entry("visby", "Vi"),
             Map.entry("aby", "Å"), Map.entry("amal", "Åm"),
             Map.entry("arjang", "År"), Map.entry("orebro", "Ö"),
-            Map.entry("ostersund", "Ös"), Map.entry("bjerke", "Bj")
+            Map.entry("ostersund", "Ös"),
+
+            Map.entry("bjerke", "Bj"),
+            Map.entry("bodo", "Bd"),
+            Map.entry("biri", "Br"),
+            Map.entry("bergen", "Bt"),
+            Map.entry("drammen", "Dr"),
+            Map.entry("forus", "Fs"),
+            Map.entry("harstad", "Ha"),
+            Map.entry("haugaland", "Ht"),
+            Map.entry("jarlsberg", "Ja"),
+            Map.entry("klosterskogen", "Kl"),
+            Map.entry("leangen", "Le"),
+            Map.entry("momarken", "Mo"),
+            Map.entry("sorlandet", "Sö"),
+
+            Map.entry("arhus", "Aa"),
+            Map.entry("billund", "Bi"),
+            Map.entry("bornholm", "Bm"),
+            Map.entry("charlottenlund", "Ch"),
+            Map.entry("nykobing", "Ny"),
+            Map.entry("odense", "Od"),
+            Map.entry("skive", "Se"),
+            Map.entry("alborg", "Ål")
     );
 
     private static final Map<String, String> BANKODE_TO_SLUG;
@@ -92,6 +115,46 @@ public class AtgScraperService {
         //codes.add("Bj"); etc.
         int yyyymmdd = toYyyymmdd(date);
         List<String> codes = startListRepo.findDistinctBanKoderOn(yyyymmdd);
+        if (codes == null || codes.isEmpty()) {
+            log.info("ℹ️  Inga banor i startlista för {}", date);
+            return List.of();
+        }
+        List<String> slugs = new ArrayList<>();
+        for (String code : codes) {
+            String slug = BANKODE_TO_SLUG.get(code);
+            if (slug == null || slug.isBlank()) {
+                log.warn("⚠️  Okänd bankod '{}' för {}, hoppar den banan", code, date);
+                continue;
+            }
+            slugs.add(slug);
+        }
+        return slugs;
+    }
+
+    private List<String> tracksForForeign(LocalDate date) {
+        List<String> codes = new ArrayList<>();
+        codes.add("Bd");
+        codes.add("Br");
+        codes.add("Bt");
+        codes.add("Dr");
+        codes.add("Fs");
+        codes.add("Ha");
+        codes.add("Ht");
+        codes.add("Ja");
+        codes.add("Kl");
+        codes.add("Le");
+        codes.add("Mo");
+        codes.add("Sö");
+
+        codes.add("Aa");
+        codes.add("Bi");
+        codes.add("Bm");
+        codes.add("Ch");
+        codes.add("Ny");
+        codes.add("Od");
+        codes.add("Se");
+        codes.add("Ål");
+
         if (codes == null || codes.isEmpty()) {
             log.info("ℹ️  Inga banor i startlista för {}", date);
             return List.of();
@@ -141,6 +204,31 @@ public class AtgScraperService {
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 log.info("📆  Scraping RESULTS {}", date);
                 List<String> tracks = tracksFor(date);
+                for (String track : tracks) {
+                    processDateTrack(date, track);
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
+    public void scrapeForeign() {
+        if (!lock.tryLock()) {
+            log.warn("⏳ Previous scrape still running – skipping");
+            return;
+        }
+        try {
+            LocalDate end   = Optional.ofNullable(props.getEndDateResults())
+                    .orElse(LocalDate.now(ZoneId.of("Europe/Stockholm"))
+                            .minusDays(0));
+            LocalDate start = Optional.ofNullable(props.getStartDateResults())
+                    .orElse(end.minusDays(0));
+
+            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                log.info("📆  Scraping danskar och norskar RESULTS {}", date);
+                List<String> tracks = tracksForForeign(date);
                 for (String track : tracks) {
                     processDateTrack(date, track);
                 }
