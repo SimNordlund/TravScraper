@@ -23,6 +23,6 @@ public class TravScraperApplication implements CommandLineRunner {
     public void run(String... args) {
         service.scrapeFuture();
         service.scrape();
-      //  service.scrapeForeign();
+        service.scrapeForeign();
     }
 }

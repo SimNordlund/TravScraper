@@ -220,10 +220,10 @@ public class AtgScraperService {
             return;
         }
         try {
-            LocalDate end   = Optional.ofNullable(props.getEndDateResults())
+            LocalDate end   = Optional.ofNullable(props.getEndDateResultForeign())
                     .orElse(LocalDate.now(ZoneId.of("Europe/Stockholm"))
                             .minusDays(0));
-            LocalDate start = Optional.ofNullable(props.getStartDateResults())
+            LocalDate start = Optional.ofNullable(props.getStartDateForeign())
                     .orElse(end.minusDays(0));
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
