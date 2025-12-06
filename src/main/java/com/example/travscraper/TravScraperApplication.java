@@ -10,9 +10,14 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class TravScraperApplication implements CommandLineRunner {
 
     private final AtgScraperService service;
+    private final com.example.travscraper.Service.HorseWarningService horseWarningService;
 
-    public TravScraperApplication(AtgScraperService svc) {
+    public TravScraperApplication(
+            AtgScraperService svc,
+            com.example.travscraper.Service.HorseWarningService horseWarningService
+    ) {
         this.service = svc;
+        this.horseWarningService = horseWarningService;
     }
 
     public static void main(String[] args) {
@@ -21,6 +26,7 @@ public class TravScraperApplication implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        horseWarningService.refreshWarnings(8);
         service.scrapeFuture();
         service.scrape();
         service.scrapeForeign();
