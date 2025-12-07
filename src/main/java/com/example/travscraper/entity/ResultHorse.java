@@ -1,40 +1,40 @@
 package com.example.travscraper.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.Immutable;
-
-
-import jakarta.persistence.Column;
 
 @Entity
-@Table(name = "resultat")
-@Immutable
+@Table( //Changed!
+        name = "resultat", //Changed!
+        uniqueConstraints = @UniqueConstraint(columnNames = {"datum","bankod","lopp","namn"}) //Changed!
+) //Changed!
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Builder
 public class ResultHorse {
+
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "datum")
+    @Column(name = "datum", nullable = false)
     private Integer datum;
 
-    @Column(name = "bankod")
+    @Column(name = "bankod", nullable = false, length = 2)
     private String bankod;
 
-    @Column(name = "lopp")
+    @Column(name = "lopp", nullable = false)
     private Integer lopp;
 
-    @Column(name = "nr")
-    private Integer nr;
+    @Builder.Default //Changed!
+    @Column(name = "nr", nullable = false) //Changed!
+    private Integer nr = 0; //Changed!
 
-    @Column(name = "namn")
-    private String namn;
+    @Builder.Default
+    @Column(name = "namn", nullable = false, length = 50)
+    private String namn = "";
 
     @Column(name = "distans")
     private Integer distans;
@@ -48,9 +48,15 @@ public class ResultHorse {
     @Column(name = "tid")
     private Double tid;
 
-    @Column(name = "startmetod")
-    private String startmetod;
+    @Builder.Default
+    @Column(name = "startmetod", nullable = false, length = 1)
+    private String startmetod = "";
 
-    @Column(name = "galopp") //denna behövs nog ej
-    private String galopp;
+    @Builder.Default
+    @Column(name = "galopp", nullable = false, length = 1)
+    private String galopp = "";
+
+    @Builder.Default //Changed!
+    @Column(name = "underlag", nullable = false, length = 1) //Changed!
+    private String underlag = ""; //Changed!
 }

@@ -1,3 +1,4 @@
+// src/main/java/com/example/travscraper/TravScraperApplication.java
 package com.example.travscraper;
 
 import org.springframework.boot.CommandLineRunner;
@@ -26,9 +27,14 @@ public class TravScraperApplication implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        runResultatPopupScrape(); //Changed!
         horseWarningService.refreshWarnings(8);
         service.scrapeFuture();
         service.scrape();
         service.scrapeForeign();
     }
+
+    private void runResultatPopupScrape() { //Changed!
+        service.scrapeResultatPopupsOnly(); //Changed!
+    } //Changed!
 }
