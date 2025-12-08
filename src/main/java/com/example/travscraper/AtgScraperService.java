@@ -1234,7 +1234,7 @@ public class AtgScraperService {
     } //Changed!
 
     private Integer extractDatumFromResultRow(Element tr) { //Changed!
-        //Changed! 1) Primärt: ta hela datumet från href (/spel/yyyy-MM-dd/...)
+        //Changed! 1) Hämta helst datum från href där det redan är yyyy-MM-dd
         Element a = tr.selectFirst("a[data-test-id=result-date]"); //Changed!
         if (a != null) { //Changed!
             String href = a.attr("href"); //Changed!
@@ -1242,35 +1242,28 @@ public class AtgScraperService {
             if (mh.find()) { //Changed!
                 try { //Changed!
                     LocalDate d = LocalDate.parse(mh.group(1), URL_DATE_FORMAT); //Changed!
-                    return toYyyymmdd(d); //Changed! 20251208
+                    return Integer.parseInt(d.format(DateTimeFormatter.BASIC_ISO_DATE)); //Changed! yyyyMMdd
                 } catch (Exception ignored) { //Changed!
                 } //Changed!
             } //Changed!
         } //Changed!
 
-        //Changed! 2) Fallback: om vi bara har texten (t.ex. 251201) -> gör om till 20251201
+        //Changed! 2) Fallback: texten är ofta yyMMdd (t.ex. 251201) -> gör om till 20251201
         Element el = tr.selectFirst("a[data-test-id=result-date] span"); //Changed!
         String txt = (el != null) ? el.text().trim() : ""; //Changed!
         Matcher m = DIGITS_ONLY.matcher(txt); //Changed!
         if (m.find()) { //Changed!
             String digits = m.group(1).replaceAll("\\D+", ""); //Changed!
             try { //Changed!
-                if (digits.length() == 8) { //Changed!
-                    LocalDate d = LocalDate.parse(digits, DateTimeFormatter.BASIC_ISO_DATE); //Changed!
-                    return toYyyymmdd(d); //Changed! (validerat)
-                } //Changed!
-                if (digits.length() == 6) { //Changed!
-                    int yy = Integer.parseInt(digits.substring(0, 2)); //Changed!
-                    int prefix = (yy >= 70 ? 1900 : 2000); //Changed!
-                    int mmdd = Integer.parseInt(digits.substring(2)); //Changed!
-                    return (prefix * 10000) + mmdd; //Changed! 251201 -> 20251201
-                } //Changed!
+                if (digits.length() == 6) return 20000000 + Integer.parseInt(digits); //Changed! yyMMdd -> 20yyMMdd
+                if (digits.length() == 8) return Integer.parseInt(digits); //Changed! yyyyMMdd
             } catch (Exception ignored) { //Changed!
             } //Changed!
         } //Changed!
 
         return null; //Changed!
-    }
+    } //Changed!
+
 
     private TrackLap parseTrackLapText(String raw) { //Changed!
         String t = normalizeCellText(raw); //Changed!
@@ -1345,32 +1338,52 @@ public class AtgScraperService {
         return out; //Changed!
     } //Changed!
 
+    private static Integer mapPlaceringValue(String raw) { //Changed!
+        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT); //Changed!
+        if (t.isBlank()) return null; //Changed!
+
+        //Changed! ta första token (om cellen har mer text)
+        String token = t.split("\\s+")[0].replaceAll("[^0-9\\p{L}]", ""); //Changed!
+        if (token.isBlank()) return null; //Changed!
+
+        //Changed! sträng/tecken (k, p, str, d osv) -> 99
+        if (token.codePoints().anyMatch(Character::isLetter)) return 99; //Changed!
+
+        //Changed! siffror
+        if (!token.matches("^\\d+$")) return null; //Changed!
+        if (token.length() > 2) return null; //Changed! skydd mot t.ex. datumliknande värden
+
+        try { //Changed!
+            int v = Integer.parseInt(token); //Changed!
+            if (v == 0 || v == 9) return 15; //Changed!
+            return v; //Changed!
+        } catch (NumberFormatException e) { //Changed!
+            return null; //Changed!
+        } //Changed!
+    } //Changed!
+
     private static Integer extractPlaceringFromTds(Elements tds, int distIdx) { //Changed!
         if (tds == null || tds.isEmpty()) return null; //Changed!
 
-        // 1) Försök hitta cellen som är "fetstilad" (som på din bild) //Changed!
+        //Changed! 1) fetstilad cell först (det är placering i din vy)
         for (int i = 0; i < tds.size(); i++) { //Changed!
             Element td = tds.get(i); //Changed!
             if (td.selectFirst("span[style*=font-weight]") != null) { //Changed!
-                Integer v = parseFirstInt(td.text()); //Changed!
+                Integer v = mapPlaceringValue(td.text()); //Changed!
                 if (v != null) return v; //Changed!
             } //Changed!
         } //Changed!
 
-        // 2) Fallback: första lilla heltalet före distans/spår-kolumnen //Changed!
+        //Changed! 2) fallback: leta före distans:spår-kolumnen
         int max = (distIdx >= 0 ? distIdx : tds.size()); //Changed!
         for (int i = 0; i < max; i++) { //Changed!
-            String txt = normalizeCellText(tds.get(i).text()); //Changed!
-            if (txt.matches("^\\d{1,2}$")) { //Changed!
-                try { //Changed!
-                    return Integer.parseInt(txt); //Changed!
-                } catch (NumberFormatException ignored) { //Changed!
-                } //Changed!
-            } //Changed!
+            Integer v = mapPlaceringValue(tds.get(i).text()); //Changed!
+            if (v != null) return v; //Changed!
         } //Changed!
 
         return null; //Changed!
     } //Changed!
+
 
     private static Double extractTidFromTds(Elements tds, int distIdx) { //Changed!
         if (tds == null || tds.isEmpty()) return null; //Changed!
@@ -1441,7 +1454,4 @@ public class AtgScraperService {
                 trackLike, key, fallback); //Changed!
         return fallback; //Changed!
     } //Changed!
-
-
-
 }
