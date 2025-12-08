@@ -55,6 +55,9 @@ public class AtgScraperService {
     private static final DateTimeFormatter URL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter YYMMDD_FORMAT = DateTimeFormatter.ofPattern("yyMMdd"); //Changed!
 
+    private static final Pattern ISO_DATE = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$"); //Changed!
+    private static final Pattern HAS_LETTER = Pattern.compile(".*\\p{L}.*"); //Changed!
+
     private static final int RESULTAT_MAX_HORSES_PER_LAP = 999; //Changed!
     private static final int RESULTAT_MAX_ROWS_PER_HORSE = 999; //Changed!
 
@@ -163,17 +166,6 @@ public class AtgScraperService {
     }
 
     private static final String DEFAULT_BANKOD = "XX"; //Changed!
-
-    private static String toBankodOrXX(String trackLike) { //Changed!
-        if (trackLike == null || trackLike.isBlank()) return DEFAULT_BANKOD; //Changed!
-        String slug = slugify(trackLike); //Changed!
-        String code = FULLNAME_TO_BANKODE.get(slug); //Changed!
-        if (code == null || code.isBlank()) { //Changed!
-            log.warn("⚠️  Okänd bana '{}' (slug='{}'), sätter bankod={}", trackLike, slug, DEFAULT_BANKOD); //Changed!
-            return DEFAULT_BANKOD; //Changed!
-        } //Changed!
-        return code; //Changed!
-    } //Changed!
 
 
     private List<String> tracksFor(LocalDate date) {
@@ -580,6 +572,21 @@ public class AtgScraperService {
         return map;
     }
 
+    private static String trackKey(String trackLike) { //Changed!
+        if (trackLike == null) return ""; //Changed!
+        String k = slugify(trackLike); //Changed!
+        k = k.replace('-', ' ').replace('_', ' '); //Changed!
+        k = k.replaceAll("\\s+", " ").trim(); //Changed!
+        return k; //Changed!
+    } //Changed!
+
+    private static String toKnownBankodOrNull(String trackLike) { //Changed!
+        String key = trackKey(trackLike); //Changed!
+        if (key.isBlank()) return null; //Changed!
+        return FULLNAME_TO_BANKODE.get(key); //Changed!
+    } //Changed!
+
+
     private Map<String, String> extractTrioMap(Page page) {
         Map<String, String> map = new HashMap<>();
         Document doc = Jsoup.parse(page.content());
@@ -612,7 +619,11 @@ public class AtgScraperService {
             String nr = parts.length > 0 ? parts[0] : "";
             String name = parts.length > 1 ? parts[1] : "";
 
-            String bankode = toBankodOrXX(track);
+            String bankode = toKnownBankodOrNull(track); //Changed!
+            if (bankode == null) { //Changed!
+                log.warn("⚠️  Okänd bana '{}' -> skippar RESULTS (ScrapedHorse) helt", track); //Changed!
+                continue; //Changed!
+            } //Changed!
 
             ScrapedHorseKey key = new ScrapedHorseKey(date, bankode, String.valueOf(lap), nr);
 
@@ -674,7 +685,12 @@ public class AtgScraperService {
             Element vOddEl = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
             String vOdds = vOddEl != null ? vOddEl.text().trim() : "";
 
-            String bankode = toBankodOrXX(track);
+            String bankode = toKnownBankodOrNull(track); //Changed!
+            if (bankode == null) { //Changed!
+                log.warn("⚠️  Okänd bana '{}' -> skippar FUTURE (FutureHorse) helt", track); //Changed!
+                continue; //Changed!
+            } //Changed!
+
 
             Optional<FutureHorse> existing = futureRepo
                     .findByDateAndTrackAndLapAndNumberOfHorse(
@@ -1250,6 +1266,30 @@ public class AtgScraperService {
         return null; //Changed!
     } //Changed!
 
+    private TrackLap parseTrackLapText(String raw) { //Changed!
+        String t = normalizeCellText(raw); //Changed!
+        if (t.isBlank()) return null; //Changed!
+
+        //Changed! Stoppa datum som annars matchar TRACK_LAP_PATTERN (t.ex. 2025-10-06 -> "2025-10" + "06")
+        if (ISO_DATE.matcher(t).matches()) return null; //Changed!
+        if (t.matches("^\\d{6}$") || t.matches("^\\d{8}$")) return null; //Changed!
+
+        Matcher m = TRACK_LAP_PATTERN.matcher(t); //Changed!
+        if (!m.matches()) return null; //Changed!
+
+        String trackName = m.group(1).trim(); //Changed!
+        if (!HAS_LETTER.matcher(trackName).matches()) return null; //Changed! // stoppar "2025-10"
+
+        int lopp; //Changed!
+        try { //Changed!
+            lopp = Integer.parseInt(m.group(2)); //Changed!
+        } catch (NumberFormatException e) { //Changed!
+            return null; //Changed!
+        } //Changed!
+
+        return new TrackLap(toResultBankod(trackName), lopp); //Changed!
+    } //Changed!
+
     private TrackLap extractTrackLapFromResultRow(Element tr) { //Changed!
         Element a = tr.selectFirst("a[data-test-id=result-date]"); //Changed!
         if (a != null) { //Changed!
@@ -1259,29 +1299,19 @@ public class AtgScraperService {
                 String trackSlug = mh.group(2).trim(); //Changed!
                 try { //Changed!
                     int lopp = Integer.parseInt(mh.group(3)); //Changed!
-                    String bankod = toBankodOrXX(trackSlug);
+                    String bankod = toResultBankod(trackSlug); //Changed!
                     return new TrackLap(bankod, lopp); //Changed!
                 } catch (NumberFormatException ignored) { //Changed!
                 } //Changed!
             } //Changed!
         } //Changed!
 
+        //Changed! Fallback: leta i alla td men ignorera datum och kräver bokstav i "bana"-delen
         for (Element td : tr.select("td")) { //Changed!
-            String t = td.text().trim(); //Changed!
-            Matcher m = TRACK_LAP_PATTERN.matcher(t); //Changed!
-            if (!m.matches()) continue; //Changed!
-
-            String trackName = m.group(1).trim(); //Changed!
-            Integer lopp; //Changed!
-            try { //Changed!
-                lopp = Integer.parseInt(m.group(2)); //Changed!
-            } catch (NumberFormatException e) { //Changed!
-                continue; //Changed!
-            } //Changed!
-
-            String bankod = toBankodOrXX(trackName); //Changed!
-            return new TrackLap(bankod, lopp); //Changed!
+            TrackLap tl = parseTrackLapText(td.text()); //Changed!
+            if (tl != null) return tl; //Changed!
         } //Changed!
+
         return null; //Changed!
     } //Changed!
 
@@ -1388,5 +1418,24 @@ public class AtgScraperService {
         if (s == null) return ""; //Changed!
         return s.replace('\u00A0', ' ').trim(); //Changed!
     } //Changed!
+
+    private static final int RESULT_BANKOD_MAX_LEN = 20; //Changed!
+
+    private static String toResultBankod(String trackLike) { //Changed!
+        if (trackLike == null || trackLike.isBlank()) return DEFAULT_BANKOD; //Changed!
+
+        String key = trackKey(trackLike); //Changed!
+        String code = FULLNAME_TO_BANKODE.get(key); //Changed!
+        if (code != null && !code.isBlank()) return code; //Changed!
+
+        String fallback = trimToMax(key, RESULT_BANKOD_MAX_LEN); //Changed!
+        if (fallback.isBlank()) return DEFAULT_BANKOD; //Changed!
+
+        log.warn("⚠️  Okänd bana '{}' (key='{}'), använder '{}' som bankod i RESULT-tabellen", //Changed!
+                trackLike, key, fallback); //Changed!
+        return fallback; //Changed!
+    } //Changed!
+
+
 
 }

@@ -22,7 +22,7 @@ public class ResultHorse {
     @Column(name = "datum", nullable = false)
     private Integer datum;
 
-    @Column(name = "bankod", nullable = false, length = 2)
+    @Column(name = "bankod", length = 20, nullable = false) //Changed!
     private String bankod;
 
     @Column(name = "lopp", nullable = false)
