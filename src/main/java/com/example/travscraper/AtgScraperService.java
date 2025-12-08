@@ -1347,7 +1347,7 @@ public class AtgScraperService {
         if (token.isBlank()) return null; //Changed!
 
         //Changed! sträng/tecken (k, p, str, d osv) -> 99
-        if (token.codePoints().anyMatch(Character::isLetter)) return 99; //Changed!
+        if (token.equals("k") || token.equals("p") || token.equals("str") || token.equals("d")) return 99; //Changed!
 
         //Changed! siffror
         if (!token.matches("^\\d+$")) return null; //Changed!
