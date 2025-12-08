@@ -1234,22 +1234,7 @@ public class AtgScraperService {
     } //Changed!
 
     private Integer extractDatumFromResultRow(Element tr) { //Changed!
-        Element el = tr.selectFirst("a[data-test-id=result-date] span"); //Changed!
-        String txt = (el != null) ? el.text().trim() : ""; //Changed!
-        Matcher m = DIGITS_ONLY.matcher(txt); //Changed!
-        if (m.find()) { //Changed!
-            String digits = m.group(1).replaceAll("\\D+", ""); //Changed!
-            try { //Changed!
-                //Changed! Om vi får yyyymmdd (8 siffror) vill vi ändå spara yyMMdd
-                if (digits.length() == 8) { //Changed!
-                    LocalDate d = LocalDate.parse(digits, DateTimeFormatter.BASIC_ISO_DATE); //Changed!
-                    return Integer.parseInt(d.format(YYMMDD_FORMAT)); //Changed!
-                } //Changed!
-                return Integer.parseInt(digits); //Changed!
-            } catch (Exception ignored) { //Changed!
-            } //Changed!
-        } //Changed!
-
+        //Changed! 1) Primärt: ta hela datumet från href (/spel/yyyy-MM-dd/...)
         Element a = tr.selectFirst("a[data-test-id=result-date]"); //Changed!
         if (a != null) { //Changed!
             String href = a.attr("href"); //Changed!
@@ -1257,14 +1242,35 @@ public class AtgScraperService {
             if (mh.find()) { //Changed!
                 try { //Changed!
                     LocalDate d = LocalDate.parse(mh.group(1), URL_DATE_FORMAT); //Changed!
-                    return Integer.parseInt(d.format(YYMMDD_FORMAT)); //Changed!
+                    return toYyyymmdd(d); //Changed! 20251208
                 } catch (Exception ignored) { //Changed!
                 } //Changed!
             } //Changed!
         } //Changed!
 
+        //Changed! 2) Fallback: om vi bara har texten (t.ex. 251201) -> gör om till 20251201
+        Element el = tr.selectFirst("a[data-test-id=result-date] span"); //Changed!
+        String txt = (el != null) ? el.text().trim() : ""; //Changed!
+        Matcher m = DIGITS_ONLY.matcher(txt); //Changed!
+        if (m.find()) { //Changed!
+            String digits = m.group(1).replaceAll("\\D+", ""); //Changed!
+            try { //Changed!
+                if (digits.length() == 8) { //Changed!
+                    LocalDate d = LocalDate.parse(digits, DateTimeFormatter.BASIC_ISO_DATE); //Changed!
+                    return toYyyymmdd(d); //Changed! (validerat)
+                } //Changed!
+                if (digits.length() == 6) { //Changed!
+                    int yy = Integer.parseInt(digits.substring(0, 2)); //Changed!
+                    int prefix = (yy >= 70 ? 1900 : 2000); //Changed!
+                    int mmdd = Integer.parseInt(digits.substring(2)); //Changed!
+                    return (prefix * 10000) + mmdd; //Changed! 251201 -> 20251201
+                } //Changed!
+            } catch (Exception ignored) { //Changed!
+            } //Changed!
+        } //Changed!
+
         return null; //Changed!
-    } //Changed!
+    }
 
     private TrackLap parseTrackLapText(String raw) { //Changed!
         String t = normalizeCellText(raw); //Changed!
