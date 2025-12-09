@@ -55,6 +55,7 @@ public class AtgScraperService {
     private static final DateTimeFormatter URL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter YYMMDD_FORMAT = DateTimeFormatter.ofPattern("yyMMdd"); //Changed!
 
+    private static final Pattern PLACERING_WITH_R = Pattern.compile("^(\\d{1,2})r$"); //Changed!
     private static final Pattern ISO_DATE = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$"); //Changed!
     private static final Pattern HAS_LETTER = Pattern.compile(".*\\p{L}.*"); //Changed!
 
@@ -1405,16 +1406,16 @@ public class AtgScraperService {
         String t = normalizeCellText(raw).toLowerCase(Locale.ROOT); //Changed!
         if (t.isBlank()) return null; //Changed!
 
-        //Changed! ta första token (om cellen har mer text)
         String token = t.split("\\s+")[0].replaceAll("[^0-9\\p{L}]", ""); //Changed!
         if (token.isBlank()) return null; //Changed!
 
-        //Changed! sträng/tecken (k, p, str, d osv) -> 99
+        Matcher mr = PLACERING_WITH_R.matcher(token); //Changed!
+        if (mr.matches()) token = mr.group(1); //Changed!
+
         if (token.equals("k") || token.equals("p") || token.equals("str") || token.equals("d")) return 99; //Changed!
 
-        //Changed! siffror
         if (!token.matches("^\\d+$")) return null; //Changed!
-        if (token.length() > 2) return null; //Changed! skydd mot t.ex. datumliknande värden
+        if (token.length() > 2) return null; //Changed!
 
         try { //Changed!
             int v = Integer.parseInt(token); //Changed!
@@ -1424,6 +1425,7 @@ public class AtgScraperService {
             return null; //Changed!
         } //Changed!
     } //Changed!
+
 
     private static Integer extractPlaceringFromTds(Elements tds, int distIdx) { //Changed!
         if (tds == null || tds.isEmpty()) return null; //Changed!
