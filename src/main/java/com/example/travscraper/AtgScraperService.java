@@ -68,6 +68,12 @@ public class AtgScraperService {
             "/spel/(\\d{4}-\\d{2}-\\d{2})/vinnare/([^/]+)/lopp/(\\d+)/resultat" //Changed!
     ); //Changed!
 
+    private static final Pattern PRIS_APOSTROPHE = Pattern.compile("^\\s*(\\d{1,6})\\s*['’]\\s*$"); //Changed!
+    private static final Pattern PRIS_THOUSANDS = Pattern.compile("^\\s*(\\d{1,3}(?:[ \\u00A0\\.]\\d{3})+|\\d{4,})\\s*(?:kr)?\\s*$", Pattern.CASE_INSENSITIVE); //Changed!
+    private static final Pattern PRIS_K = Pattern.compile("^\\s*(\\d{1,6})\\s*k\\s*$", Pattern.CASE_INSENSITIVE); //Changed!
+    private static final Pattern ODDS_NUMBER = Pattern.compile("^\\s*(\\d{1,4})(?:[\\.,](\\d{1,2}))?\\s*$"); //Changed!
+
+
     //Changed! Cookie selectors (för när init-scriptet inte hinner / blockeras)
     private static final String SEL_COOKIE_BUTTONS = //Changed!
             "button:has-text(\"Tillåt alla\"):visible, " + //Changed!
@@ -1156,6 +1162,9 @@ public class AtgScraperService {
             Integer placering = extractPlaceringFromTds(tds, distIdx); //Changed!
             Double tid = extractTidFromTds(tds, distIdx); //Changed!
 
+            Integer pris = extractPrisFromTds(tds, distIdx); //Changed!
+            Integer odds = extractOddsFromTds(tds, distIdx); //Changed!
+
             ResultHorse rh = resultRepo
                     .findByDatumAndBankodAndLoppAndNr(datum, tl.bankod(), tl.lopp(), 0) //Changed!
                     .orElseGet(() -> ResultHorse.builder()
@@ -1174,6 +1183,9 @@ public class AtgScraperService {
             if (spar != null) rh.setSpar(spar); //Changed!
             if (placering != null) rh.setPlacering(placering); //Changed!
             if (tid != null) rh.setTid(tid); //Changed!
+
+            rh.setPris(pris); //Changed!
+            rh.setOdds(odds); //Changed!
 
             toSave.add(rh);
         }
@@ -1205,6 +1217,9 @@ public class AtgScraperService {
                     if (rh.getPlacering() != null) existing.setPlacering(rh.getPlacering()); //Changed!
                     if (rh.getTid() != null) existing.setTid(rh.getTid()); //Changed!
 
+                    existing.setPris(rh.getPris()); //Changed!
+                    existing.setOdds(rh.getOdds()); //Changed!
+
                     resultRepo.save(existing);
                 } catch (DataIntegrityViolationException ignored) {
                     log.warn("⚠️  (resultat) Kunde inte upserta datum={} bankod={} lopp={} nr=0",
@@ -1212,7 +1227,8 @@ public class AtgScraperService {
                 }
             }
         }
-    }
+    } //Changed!
+
 
 
 
@@ -1453,5 +1469,94 @@ public class AtgScraperService {
         log.warn("⚠️  Okänd bana '{}' (key='{}'), använder '{}' som bankod i RESULT-tabellen", //Changed!
                 trackLike, key, fallback); //Changed!
         return fallback; //Changed!
+    } //Changed!
+
+    private static Integer extractPrisFromTds(Elements tds, int distIdx) { //Changed!
+        if (tds == null || tds.isEmpty()) return 0; //Changed!
+
+        int start = (distIdx >= 0 ? Math.min(distIdx + 2, tds.size()) : 0); //Changed!
+        Integer last = null; //Changed!
+
+        for (int i = start; i < tds.size(); i++) { //Changed!
+            String raw = normalizeCellText(tds.get(i).text()); //Changed!
+            Integer v = parsePrisToInt(raw); //Changed!
+            if (v != null) last = v; //Changed!
+        } //Changed!
+
+        return last != null ? last : 0; //Changed!
+    } //Changed!
+
+    private static Integer parsePrisToInt(String raw) { //Changed!
+        String t = normalizeCellText(raw); //Changed!
+        if (t.isBlank()) return null; //Changed!
+
+        t = t.replaceAll("[()]", "").trim(); //Changed!
+
+        Matcher ma = PRIS_APOSTROPHE.matcher(t); //Changed!
+        if (ma.matches()) { //Changed!
+            try { return Integer.parseInt(ma.group(1)) * 1000; } catch (NumberFormatException e) { return null; } //Changed!
+        } //Changed!
+
+        Matcher mk = PRIS_K.matcher(t); //Changed!
+        if (mk.matches()) { //Changed!
+            try { return Integer.parseInt(mk.group(1)) * 1000; } catch (NumberFormatException e) { return null; } //Changed!
+        } //Changed!
+
+        // Om det finns komma/dot som decimal så är det nästan aldrig "pris" i din vy //Changed!
+        if (t.contains(",") && !t.contains(" ")) return null; //Changed!
+
+        Matcher mt = PRIS_THOUSANDS.matcher(t); //Changed!
+        if (mt.matches()) { //Changed!
+            String digits = mt.group(1).replaceAll("[\\s\\u00A0\\.]", ""); //Changed!
+            try { return Integer.parseInt(digits); } catch (NumberFormatException e) { return null; } //Changed!
+        } //Changed!
+
+        return null; //Changed!
+    } //Changed!
+
+    private static Integer extractOddsFromTds(Elements tds, int distIdx) { //Changed!
+        if (tds == null || tds.isEmpty()) return 999; //Changed!
+
+        int timeIdx = (distIdx >= 0 ? distIdx + 1 : -1); //Changed!
+        int start = (timeIdx >= 0 ? Math.min(timeIdx + 1, tds.size()) : 0); //Changed!
+
+        Integer last = null; //Changed!
+        for (int i = start; i < tds.size(); i++) { //Changed!
+            String raw = normalizeCellText(tds.get(i).text()); //Changed!
+            if (raw.isBlank()) continue; //Changed!
+
+            // Hoppa sådant som ser ut som pris (t.ex. 30') //Changed!
+            if (raw.contains("'") || raw.contains("’")) continue; //Changed!
+
+            Integer v = parseOddsToInt(raw); //Changed!
+            if (v != null) last = v; //Changed!
+        } //Changed!
+
+        return last != null ? last : 999; //Changed!
+    } //Changed!
+
+    private static Integer parseOddsToInt(String raw) { //Changed!
+        String t = normalizeCellText(raw).replaceAll("[()]", "").trim(); //Changed!
+        if (t.isBlank()) return null; //Changed!
+
+        // Om cellen innehåller text (t.ex. "gdk1", "(p)" osv) -> vi ignorerar och faller tillbaka till 999 //Changed!
+        if (t.codePoints().anyMatch(Character::isLetter)) return null; //Changed!
+
+        Matcher m = ODDS_NUMBER.matcher(t); //Changed!
+        if (!m.matches()) return null; //Changed!
+
+        String a = m.group(1); //Changed!
+        String b = m.group(2); //Changed!
+        double val; //Changed!
+        try { //Changed!
+            val = Double.parseDouble(a + "." + (b == null ? "0" : b)); //Changed!
+        } catch (NumberFormatException e) { //Changed!
+            return null; //Changed!
+        } //Changed!
+
+        int rounded = (int) Math.round(val); //Changed!
+        if (rounded < 0 || rounded > 999) return null; //Changed!
+
+        return rounded; //Changed!
     } //Changed!
 }

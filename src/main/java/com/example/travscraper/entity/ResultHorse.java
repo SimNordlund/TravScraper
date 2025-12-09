@@ -59,4 +59,12 @@ public class ResultHorse {
     @Builder.Default //Changed!
     @Column(name = "underlag", nullable = false, length = 1) //Changed!
     private String underlag = ""; //Changed!
+
+    @Builder.Default //Changed!
+    @Column(name = "pris", nullable = false) //Changed!
+    private Integer pris = 0; //Changed!
+
+    @Builder.Default //Changed!
+    @Column(name = "odds", nullable = false) //Changed!
+    private Integer odds = 999; //Changed!
 }
