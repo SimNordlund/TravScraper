@@ -12,9 +12,12 @@ import java.util.Optional; //Changed!
 @Repository
 public interface ResultHorseRepo extends JpaRepository<ResultHorse, Long> {
 
-    Optional<ResultHorse> findByDatumAndBankodAndLoppAndNr( //Changed!
-                                                            Integer datum, String bankod, Integer lopp, Integer nr //Changed!
-    ); //Changed!
+    /*Optional<ResultHorse> findByDatumAndBankodAndLoppAndNr(Integer datum, String bankod, Integer lopp, Integer nr);*/
+
+    Optional<ResultHorse> findByDatumAndBankodAndLoppAndNamn(
+                                                              Integer datum, String bankod, Integer lopp, String namn
+    );
+
 
     @Query("""
         select 

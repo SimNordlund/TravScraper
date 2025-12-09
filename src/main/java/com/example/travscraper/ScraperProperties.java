@@ -21,7 +21,7 @@ public class ScraperProperties {
     private LocalDate startDateForeign = LocalDate.now().minusDays(1);
     private LocalDate endDateResultForeign = LocalDate.now().minusDays(1);
 
-    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(2);
+    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(10);
     private LocalDate endDateResultatPopup = LocalDate.now().minusDays(1);
 
 /*    private LocalDate startDateResults = LocalDate.now().minusDays(1);

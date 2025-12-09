@@ -109,6 +109,10 @@ public class AtgScraperService {
                     "div[class*=\"previousStarts\"][class*=\"tableWrapper\"] tbody tr, " + //Changed!
                     "a[data-test-id=\"result-date\"], a[data-test-id=\"result-date\"] span"; //Changed!
 
+
+    private static final Pattern TIME_VALUE = Pattern.compile("(?:\\d+\\.)?(\\d{1,2})[\\.,](\\d{1,2})"); //Changed!
+
+
     private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
             Map.entry("arvika", "Ar"), Map.entry("axevalla", "Ax"),
             Map.entry("bergsaker", "B"), Map.entry("boden", "Bo"),
@@ -1160,13 +1164,17 @@ public class AtgScraperService {
             int distIdx = distSparIdx[2]; //Changed!
 
             Integer placering = extractPlaceringFromTds(tds, distIdx); //Changed!
-            Double tid = extractTidFromTds(tds, distIdx); //Changed!
+            TidInfo tidInfo = extractTidFromTds(tds, distIdx); //Changed!
+            Double tid = tidInfo.tid(); //Changed!
+            String startmetod = tidInfo.startmetod(); //Changed!
+            String galopp = tidInfo.galopp(); //Changed!
+
 
             Integer pris = extractPrisFromTds(tds, distIdx); //Changed!
             Integer odds = extractOddsFromTds(tds, distIdx); //Changed!
 
             ResultHorse rh = resultRepo
-                    .findByDatumAndBankodAndLoppAndNr(datum, tl.bankod(), tl.lopp(), 0) //Changed!
+                    .findByDatumAndBankodAndLoppAndNamn(datum, tl.bankod(), tl.lopp(), safeName) //Changed!
                     .orElseGet(() -> ResultHorse.builder()
                             .datum(datum)
                             .bankod(tl.bankod())
@@ -1183,6 +1191,9 @@ public class AtgScraperService {
             if (spar != null) rh.setSpar(spar); //Changed!
             if (placering != null) rh.setPlacering(placering); //Changed!
             if (tid != null) rh.setTid(tid); //Changed!
+            if (startmetod != null && !startmetod.isBlank()) rh.setStartmetod(startmetod); //Changed!
+            if (galopp != null && !galopp.isBlank()) rh.setGalopp(galopp); //Changed!
+
 
             rh.setPris(pris); //Changed!
             rh.setOdds(odds); //Changed!
@@ -1207,7 +1218,7 @@ public class AtgScraperService {
             for (ResultHorse rh : toSave) {
                 try {
                     ResultHorse existing = resultRepo
-                            .findByDatumAndBankodAndLoppAndNr(rh.getDatum(), rh.getBankod(), rh.getLopp(), 0) //Changed!
+                            .findByDatumAndBankodAndLoppAndNamn(rh.getDatum(), rh.getBankod(), rh.getLopp(), safeName) //Changed!
                             .orElse(rh);
 
                     if (!rh.getNamn().isBlank()) existing.setNamn(rh.getNamn());
@@ -1216,7 +1227,8 @@ public class AtgScraperService {
                     if (rh.getSpar() != null) existing.setSpar(rh.getSpar()); //Changed!
                     if (rh.getPlacering() != null) existing.setPlacering(rh.getPlacering()); //Changed!
                     if (rh.getTid() != null) existing.setTid(rh.getTid()); //Changed!
-
+                    if (rh.getStartmetod() != null && !rh.getStartmetod().isBlank()) existing.setStartmetod(rh.getStartmetod()); //Changed!
+                    if (rh.getGalopp() != null && !rh.getGalopp().isBlank()) existing.setGalopp(rh.getGalopp()); //Changed!
                     existing.setPris(rh.getPris()); //Changed!
                     existing.setOdds(rh.getOdds()); //Changed!
 
@@ -1337,22 +1349,57 @@ public class AtgScraperService {
         int[] out = new int[]{-1, -1, -1}; //Changed!
         if (tds == null || tds.isEmpty()) return out; //Changed!
 
-        Pattern p = Pattern.compile("(\\d{3,4})\\s*:\\s*(\\d{1,2})"); //Changed!
+        //Changed! Tillåt även "1700:" (utan spår) => default spår=1
+        Pattern p = Pattern.compile("^(\\d{3,4})\\s*:\\s*(\\d{1,2})?\\s*$"); //Changed!
         for (int i = 0; i < tds.size(); i++) { //Changed!
             String txt = normalizeCellText(tds.get(i).text()); //Changed!
             Matcher m = p.matcher(txt); //Changed!
-            if (m.find()) { //Changed!
+            if (m.matches()) { //Changed!
                 try { //Changed!
                     out[0] = Integer.parseInt(m.group(1)); //Changed!
-                    out[1] = Integer.parseInt(m.group(2)); //Changed!
+                    String g2 = m.group(2); //Changed!
+                    out[1] = (g2 == null || g2.isBlank()) ? 1 : Integer.parseInt(g2); //Changed!
                     out[2] = i; //Changed!
                     return out; //Changed!
                 } catch (NumberFormatException ignored) { //Changed!
                 } //Changed!
             } //Changed!
         } //Changed!
+
+        //Changed! Fallback: "1700" (utan ":spår") => spår=1 om nästa cell ser ut som tid (t.ex. "19,0")
+        Pattern distOnly = Pattern.compile("^(\\d{3,4})\\s*(?:m)?\\s*$", Pattern.CASE_INSENSITIVE); //Changed!
+        for (int i = 0; i < tds.size(); i++) { //Changed!
+            String txt = normalizeCellText(tds.get(i).text()); //Changed!
+            Matcher m = distOnly.matcher(txt); //Changed!
+            if (!m.matches()) continue; //Changed!
+
+            int dist; //Changed!
+            try { //Changed!
+                dist = Integer.parseInt(m.group(1)); //Changed!
+            } catch (NumberFormatException e) { //Changed!
+                continue; //Changed!
+            } //Changed!
+
+            if (dist < 600 || dist > 4000) continue; //Changed!
+
+            String next = (i + 1 < tds.size()) ? normalizeCellText(tds.get(i + 1).text()) : ""; //Changed!
+            boolean nextLooksLikeTime = false; //Changed!
+            if (!next.isBlank()) { //Changed!
+                TidInfo ti = parseTidCell(next, true); //Changed!
+                nextLooksLikeTime = (ti.tid() != null || ti.startmetod() != null || ti.galopp() != null
+                        || TIME_VALUE.matcher(next).find()); //Changed!
+            } //Changed!
+            if (!nextLooksLikeTime) continue; //Changed!
+
+            out[0] = dist; //Changed!
+            out[1] = 1; //Changed!
+            out[2] = i; //Changed!
+            return out; //Changed!
+        } //Changed!
+
         return out; //Changed!
     } //Changed!
+
 
     private static Integer mapPlaceringValue(String raw) { //Changed!
         String t = normalizeCellText(raw).toLowerCase(Locale.ROOT); //Changed!
@@ -1401,24 +1448,41 @@ public class AtgScraperService {
     } //Changed!
 
 
-    private static Double extractTidFromTds(Elements tds, int distIdx) { //Changed!
-        if (tds == null || tds.isEmpty()) return null; //Changed!
+    private record TidInfo(Double tid, String startmetod, String galopp) {} //Changed!
 
-        // Oftast ligger tid direkt efter "distans : spår" (som på din bild) //Changed!
-        if (distIdx >= 0 && distIdx + 1 < tds.size()) { //Changed!
-            Double v = parseTidToDouble(tds.get(distIdx + 1).text()); //Changed!
-            if (v != null) return v; //Changed!
-        } //Changed!
+    private static TidInfo extractTidFromTds(Elements tds, int distIdx) { //Changed!
+        if (tds == null || tds.isEmpty()) return new TidInfo(null, null, null);
 
-        // Fallback: leta efter första rimliga "xx, x" i raden (undvik stora tal som odds/pris) //Changed!
-        for (int i = 0; i < tds.size(); i++) { //Changed!
-            String txt = normalizeCellText(tds.get(i).text()); //Changed!
-            if (txt.contains(":")) continue; //Changed! (hoppa distans:spår)
-            Double v = parseTidToDouble(txt); //Changed!
-            if (v != null && v >= 8.0 && v <= 60.0) return v; //Changed!
-        } //Changed!
+        // Oftast ligger tid direkt efter "distans : spår"
+        if (distIdx >= 0 && distIdx + 1 < tds.size()) {
+            TidInfo info = parseTidCell(tds.get(distIdx + 1).text(), true); //Changed!
+            if (info.tid != null || info.startmetod != null || info.galopp != null) return info;
+        }
 
-        return null; //Changed!
+        // Fallback: leta efter första rimliga tid-cellen
+        for (int i = 0; i < tds.size(); i++) {
+            String raw = normalizeCellText(tds.get(i).text());
+            if (raw.contains(":")) continue; // (hoppa distans:spår)
+
+            TidInfo info = parseTidCell(raw); //Changed!
+            if (info.tid == null && info.startmetod == null && info.galopp == null) continue;
+
+            // Tillåt alltid 99 (dist/kub/u/d/vmk)
+            if (info.tid != null && Double.compare(info.tid, 99.0) == 0) return info;
+
+            // Undvik odds som ofta har två decimaler (t.ex. 28,81)
+            if (info.tid != null && info.startmetod == null && info.galopp == null && raw.matches(".*\\d+[\\.,]\\d{2}.*")) {
+                continue;
+            }
+
+            // Rimlig tid-range
+            if (info.tid != null && info.tid >= 8.0 && info.tid <= 60.0) return info;
+
+            // Om vi åtminstone hittade a/g, returnera det
+            if (info.startmetod != null || info.galopp != null) return info;
+        }
+
+        return new TidInfo(null, null, null);
     } //Changed!
 
     private static Integer parseFirstInt(String s) { //Changed!
@@ -1432,21 +1496,52 @@ public class AtgScraperService {
         } //Changed!
     } //Changed!
 
-    private static Double parseTidToDouble(String s) { //Changed!
-        String txt = normalizeCellText(s); //Changed!
-        if (txt.isBlank()) return null; //Changed!
+    private static TidInfo parseTidCell(String raw) { //Changed!
+        return parseTidCell(raw, false); //Changed!
+    } //Changed!
 
-        // Matchar "22,6g", "18,6", även "1.14,6" (tar 14,6) //Changed!
-        Matcher m = Pattern.compile("(?:\\d+\\.)?(\\d{1,2})[\\.,](\\d{1,2})").matcher(txt); //Changed!
-        if (!m.find()) return null; //Changed!
+    private static TidInfo parseTidCell(String raw, boolean integerNoCommaMeans99) { //Changed!
+        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
+        if (t.isBlank()) return new TidInfo(null, null, null);
 
-        String a = m.group(1); //Changed!
-        String b = m.group(2); //Changed!
-        try { //Changed!
-            return Double.parseDouble(a + "." + b); //Changed!
-        } catch (NumberFormatException e) { //Changed!
-            return null; //Changed!
+        t = t.replaceAll("[()\\s]", "");
+
+        // Plocka ut bokstavsdelen (suffix/ord)
+        String letters = t.replaceAll("[0-9\\.,]", "");
+
+        String startmetod = letters.contains("a") ? "a" : null;
+        String galopp = letters.contains("g") ? "g" : null;
+
+        // Specialfall som alltid ska ge tid = 99
+        boolean force99 = letters.contains("dist")
+                || letters.contains("kub")
+                || letters.contains("vmk")
+                || letters.contains("u")
+                || letters.contains("d");
+
+        Double time = null;
+        Matcher m = TIME_VALUE.matcher(t);
+        if (m.find()) {
+            try {
+                time = Double.parseDouble(m.group(1) + "." + m.group(2));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        if (force99) return new TidInfo(99.0, startmetod, galopp);
+
+        //Changed! Om det inte finns komma/punkt i tid-kolumnen (t.ex. "14", "10", "10ag") => tid=99
+        if (time == null) { //Changed!
+            boolean hasSep = t.contains(",") || t.contains("."); //Changed!
+            String digits = t.replaceAll("\\D+", ""); //Changed!
+            if (!hasSep && !digits.isBlank() && digits.length() <= 2) { //Changed!
+                if (integerNoCommaMeans99 || !letters.isBlank()) { //Changed!
+                    return new TidInfo(99.0, startmetod, galopp); //Changed!
+                } //Changed!
+            } //Changed!
         } //Changed!
+
+        return new TidInfo(time, startmetod, galopp);
     } //Changed!
 
     private static String normalizeCellText(String s) { //Changed!
