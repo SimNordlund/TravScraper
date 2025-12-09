@@ -25,6 +25,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets; //Changed!
 import java.text.Normalizer;
 import java.time.LocalDate;
@@ -1148,6 +1150,8 @@ public class AtgScraperService {
 
         String safeName = (horseName == null) ? "" : trimToMax(horseName.trim(), 50);
 
+        int kuskIdx = findHeaderIndex(container, Pattern.compile("\\bkusk\\b", Pattern.CASE_INSENSITIVE)); //Changed!
+
         List<ResultHorse> toSave = new ArrayList<>();
         int limit = Math.min(rows.size(), RESULTAT_MAX_ROWS_PER_HORSE);
 
@@ -1170,9 +1174,10 @@ public class AtgScraperService {
             String startmetod = tidInfo.startmetod(); //Changed!
             String galopp = tidInfo.galopp(); //Changed!
 
-
             Integer pris = extractPrisFromTds(tds, distIdx); //Changed!
             Integer odds = extractOddsFromTds(tds, distIdx); //Changed!
+
+            String kusk = trimToMax(textAt(tds, kuskIdx), 80); //Changed!
 
             ResultHorse rh = resultRepo
                     .findByDatumAndBankodAndLoppAndNamn(datum, tl.bankod(), tl.lopp(), safeName) //Changed!
@@ -1195,9 +1200,10 @@ public class AtgScraperService {
             if (startmetod != null && !startmetod.isBlank()) rh.setStartmetod(startmetod); //Changed!
             if (galopp != null && !galopp.isBlank()) rh.setGalopp(galopp); //Changed!
 
-
             rh.setPris(pris); //Changed!
             rh.setOdds(odds); //Changed!
+
+            if (kusk != null && !kusk.isBlank()) rh.setKusk(kusk); //Changed!
 
             toSave.add(rh);
         }
@@ -1233,6 +1239,8 @@ public class AtgScraperService {
                     existing.setPris(rh.getPris()); //Changed!
                     existing.setOdds(rh.getOdds()); //Changed!
 
+                    if (rh.getKusk() != null && !rh.getKusk().isBlank()) existing.setKusk(rh.getKusk()); //Changed!
+
                     resultRepo.save(existing);
                 } catch (DataIntegrityViolationException ignored) {
                     log.warn("⚠️  (resultat) Kunde inte upserta datum={} bankod={} lopp={} nr=0",
@@ -1241,6 +1249,7 @@ public class AtgScraperService {
             }
         }
     } //Changed!
+
 
 
 
@@ -1636,7 +1645,6 @@ public class AtgScraperService {
         String t = normalizeCellText(raw).replaceAll("[()]", "").trim(); //Changed!
         if (t.isBlank()) return null; //Changed!
 
-        // Om cellen innehåller text (t.ex. "gdk1", "(p)" osv) -> vi ignorerar och faller tillbaka till 999 //Changed!
         if (t.codePoints().anyMatch(Character::isLetter)) return null; //Changed!
 
         Matcher m = ODDS_NUMBER.matcher(t); //Changed!
@@ -1644,16 +1652,35 @@ public class AtgScraperService {
 
         String a = m.group(1); //Changed!
         String b = m.group(2); //Changed!
-        double val; //Changed!
+
         try { //Changed!
-            val = Double.parseDouble(a + "." + (b == null ? "0" : b)); //Changed!
+            BigDecimal val = new BigDecimal(a + "." + (b == null ? "0" : b)); //Changed!
+            BigDecimal scaled = val.multiply(BigDecimal.TEN); //Changed!  (x10)
+            int rounded = scaled.setScale(0, RoundingMode.HALF_UP).intValue(); //Changed!
+
+            if (rounded < 0 || rounded > 9999) return null; //Changed! (was 999)
+            return rounded; //Changed!
         } catch (NumberFormatException e) { //Changed!
             return null; //Changed!
         } //Changed!
-
-        int rounded = (int) Math.round(val); //Changed!
-        if (rounded < 0 || rounded > 999) return null; //Changed!
-
-        return rounded; //Changed!
     } //Changed!
+
+    private static int findHeaderIndex(Element container, Pattern headerRx) { //Changed!
+        if (container == null) return -1; //Changed!
+        Element head = container.selectFirst("thead"); //Changed!
+        if (head == null) return -1; //Changed!
+
+        Elements hs = head.select("th, td"); //Changed!
+        for (int i = 0; i < hs.size(); i++) { //Changed!
+            String txt = normalizeCellText(hs.get(i).text()); //Changed!
+            if (headerRx.matcher(txt).find()) return i; //Changed!
+        } //Changed!
+        return -1; //Changed!
+    } //Changed!
+
+    private static String textAt(Elements tds, int idx) { //Changed!
+        if (tds == null || idx < 0 || idx >= tds.size()) return ""; //Changed!
+        return normalizeCellText(tds.get(idx).text()); //Changed!
+    } //Changed!
+
 }
