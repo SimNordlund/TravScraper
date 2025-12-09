@@ -57,7 +57,7 @@ public class ResultHorse {
     private String galopp = "";
 
     @Builder.Default //Changed!
-    @Column(name = "underlag", nullable = false, length = 1) //Changed!
+    @Column(name = "underlag", nullable = false, length = 2) //Changed!
     private String underlag = ""; //Changed!
 
     @Builder.Default //Changed!

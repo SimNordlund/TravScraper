@@ -1177,6 +1177,9 @@ public class AtgScraperService {
             Integer pris = extractPrisFromTds(tds, distIdx); //Changed!
             Integer odds = extractOddsFromTds(tds, distIdx); //Changed!
 
+            String underlag = extractUnderlagFromTds(tds); //Changed!
+            if (underlag == null) underlag = ""; //Changed!
+
             String kusk = trimToMax(textAt(tds, kuskIdx), 80); //Changed!
 
             ResultHorse rh = resultRepo
@@ -1202,6 +1205,9 @@ public class AtgScraperService {
 
             rh.setPris(pris); //Changed!
             rh.setOdds(odds); //Changed!
+
+            if (!underlag.isBlank()) rh.setUnderlag(underlag); //Changed!
+            else if (rh.getUnderlag() == null) rh.setUnderlag(""); //Changed!
 
             if (kusk != null && !kusk.isBlank()) rh.setKusk(kusk); //Changed!
 
@@ -1239,6 +1245,9 @@ public class AtgScraperService {
                     existing.setPris(rh.getPris()); //Changed!
                     existing.setOdds(rh.getOdds()); //Changed!
 
+                    if (rh.getUnderlag() != null && !rh.getUnderlag().isBlank()) existing.setUnderlag(rh.getUnderlag()); //Changed!
+                    else if (existing.getUnderlag() == null) existing.setUnderlag(""); //Changed!
+
                     if (rh.getKusk() != null && !rh.getKusk().isBlank()) existing.setKusk(rh.getKusk()); //Changed!
 
                     resultRepo.save(existing);
@@ -1248,6 +1257,43 @@ public class AtgScraperService {
                 }
             }
         }
+    } //Changed!
+
+    private static String extractUnderlagFromTds(Elements tds) { //Changed!
+        if (tds == null || tds.isEmpty()) return ""; //Changed!
+
+        String best = ""; //Changed!
+        for (Element td : tds) { //Changed!
+            String raw = normalizeCellText(td.text()); //Changed!
+            if (raw.isBlank()) continue; //Changed!
+
+            //Changed! Underlag i din vy kommer som (k n), (k), (n) osv
+            if (!(raw.contains("(") && raw.contains(")"))) continue; //Changed!
+
+            String cleaned = sanitizeUnderlag(raw); //Changed!
+            if (cleaned.isBlank()) continue; //Changed!
+
+            //Changed! Underlag är normalt kort, så vi prioriterar sista korta träffen
+            if (cleaned.length() <= 4) best = cleaned; //Changed!
+            else if (best.isBlank()) best = cleaned; //Changed!
+        } //Changed!
+
+        return best; //Changed!
+    } //Changed!
+
+    private static String sanitizeUnderlag(String raw) { //Changed!
+        if (raw == null) return ""; //Changed!
+        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT); //Changed!
+        if (t.isBlank()) return ""; //Changed!
+
+        //Changed! ta bort parenteser och whitespace: "(k n)" -> "kn"
+        t = t.replace("(", "").replace(")", ""); //Changed!
+        t = t.replaceAll("\\s+", ""); //Changed!
+
+        //Changed! behåll bara bokstäver
+        t = t.replaceAll("[^a-z]", ""); //Changed!
+
+        return t; //Changed!
     } //Changed!
 
 
