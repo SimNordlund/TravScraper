@@ -71,4 +71,17 @@ public class ResultHorse {
     @Builder.Default //Changed!
     @Column(name = "kusk", nullable = false, length = 80) //Changed!
     private String kusk = ""; //Changed!
+
+    @PrePersist //Changed!
+    @PreUpdate  //Changed!
+    private void applyNonNullDefaults() { //Changed!
+        if (nr == null) nr = 0; //Changed!
+        if (namn == null) namn = ""; //Changed!
+        if (startmetod == null) startmetod = ""; //Changed!
+        if (galopp == null) galopp = ""; //Changed!
+        if (underlag == null) underlag = ""; //Changed!
+        if (pris == null) pris = 0; //Changed!
+        if (odds == null) odds = 999; //Changed!
+        if (kusk == null) kusk = ""; //Changed!
+    } //Changed!
 }

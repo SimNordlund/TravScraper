@@ -12,7 +12,7 @@ import java.time.LocalDate;
 @Getter
 @Setter
 public class ScraperProperties {
-    private LocalDate startDateFuture = LocalDate.now().minusDays(3);
+    private LocalDate startDateFuture = LocalDate.now().minusDays(0);
     //private LocalDate endDateFuture = LocalDate.now().minusDays(0);
 
     private LocalDate startDateResults = LocalDate.now().minusDays(3);
