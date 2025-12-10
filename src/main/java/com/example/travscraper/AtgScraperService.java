@@ -110,7 +110,8 @@ public class AtgScraperService {
                     "div[class*=\"previousStarts-styles--tableWrapper\"] tbody tr, " + //Changed!
                     "div[class*=\"PreviousStarts\"][class*=\"tableWrapper\"] tbody tr, " + //Changed!
                     "div[class*=\"previousStarts\"][class*=\"tableWrapper\"] tbody tr, " + //Changed!
-                    "a[data-test-id=\"result-date\"], a[data-test-id=\"result-date\"] span"; //Changed!
+                    "[data-test-id=\"result-date\"], [data-test-id=\"result-date\"] span"; //Changed!
+
 
 
     private static final Pattern TIME_VALUE = Pattern.compile("(?:\\d+\\.)?(\\d{1,2})[\\.,](\\d{1,2})"); //Changed!
@@ -1053,7 +1054,7 @@ public class AtgScraperService {
                 Locator waitScope = btn.locator("xpath=ancestor::tr[1]"); //Changed!
                 Locator rowsInScope = waitScope.locator("tbody tr"); //Changed!
                 if (rowsInScope.count() == 0) { //Changed!
-                    rowsInScope = waitScope.locator("a[data-test-id=\"result-date\"]"); //Changed!
+                    rowsInScope = waitScope.locator("[data-test-id=\"result-date\"]"); //Changed!
                 } //Changed!
                 if (rowsInScope.count() > 0) { //Changed!
                     rowsInScope.first().waitFor(new Locator.WaitForOptions().setTimeout(30_000)); //Changed!
@@ -1328,35 +1329,50 @@ public class AtgScraperService {
     } //Changed!
 
     private Integer extractDatumFromResultRow(Element tr) { //Changed!
-        //Changed! 1) Hämta helst datum från href där det redan är yyyy-MM-dd
-        Element a = tr.selectFirst("a[data-test-id=result-date]"); //Changed!
-        if (a != null) { //Changed!
-            String href = a.attr("href"); //Changed!
-            Matcher mh = RESULT_HREF_PATTERN.matcher(href); //Changed!
-            if (mh.find()) { //Changed!
-                try { //Changed!
-                    LocalDate d = LocalDate.parse(mh.group(1), URL_DATE_FORMAT); //Changed!
-                    return Integer.parseInt(d.format(DateTimeFormatter.BASIC_ISO_DATE)); //Changed! yyyyMMdd
-                } catch (Exception ignored) { //Changed!
+        //Changed! funkar för både <a> och <div>
+        Element dateEl = tr.selectFirst("[data-test-id=result-date]"); //Changed!
+        if (dateEl != null) { //Changed!
+            //Changed! 1) Försök href om den finns (bara <a> har href)
+            String href = dateEl.hasAttr("href") ? dateEl.attr("href") : ""; //Changed!
+            if (href != null && !href.isBlank()) { //Changed!
+                Matcher mh = RESULT_HREF_PATTERN.matcher(href); //Changed!
+                if (mh.find()) { //Changed!
+                    try { //Changed!
+                        LocalDate d = LocalDate.parse(mh.group(1), URL_DATE_FORMAT); //Changed!
+                        return Integer.parseInt(d.format(DateTimeFormatter.BASIC_ISO_DATE)); //Changed! yyyyMMdd
+                    } catch (Exception ignored) { //Changed!
+                    } //Changed!
                 } //Changed!
             } //Changed!
-        } //Changed!
 
-        //Changed! 2) Fallback: texten är ofta yyMMdd (t.ex. 251201) -> gör om till 20251201
-        Element el = tr.selectFirst("a[data-test-id=result-date] span"); //Changed!
-        String txt = (el != null) ? el.text().trim() : ""; //Changed!
-        Matcher m = DIGITS_ONLY.matcher(txt); //Changed!
-        if (m.find()) { //Changed!
-            String digits = m.group(1).replaceAll("\\D+", ""); //Changed!
-            try { //Changed!
-                if (digits.length() == 6) return 20000000 + Integer.parseInt(digits); //Changed! yyMMdd -> 20yyMMdd
-                if (digits.length() == 8) return Integer.parseInt(digits); //Changed! yyyyMMdd
-            } catch (Exception ignored) { //Changed!
+            //Changed! 2) Fallback: läs texten (span eller direkt text)
+            String txt = normalizeCellText(dateEl.text()); //Changed!
+            if (!txt.isBlank()) { //Changed!
+                //Changed! stöd även yyyy-MM-dd om det någon gång dyker upp
+                if (ISO_DATE.matcher(txt).matches()) { //Changed!
+                    try { //Changed!
+                        LocalDate d = LocalDate.parse(txt, URL_DATE_FORMAT); //Changed!
+                        return Integer.parseInt(d.format(DateTimeFormatter.BASIC_ISO_DATE)); //Changed!
+                    } catch (Exception ignored) { //Changed!
+                    } //Changed!
+                } //Changed!
+
+                Matcher m = DIGITS_ONLY.matcher(txt); //Changed!
+                if (m.find()) { //Changed!
+                    String digits = m.group(1).replaceAll("\\D+", ""); //Changed!
+                    try { //Changed!
+                        if (digits.length() == 6) return 20000000 + Integer.parseInt(digits); //Changed! yyMMdd -> 20yyMMdd
+                        if (digits.length() == 8) return Integer.parseInt(digits); //Changed! yyyyMMdd
+                    } catch (Exception ignored) { //Changed!
+                    } //Changed!
+                } //Changed!
             } //Changed!
         } //Changed!
 
         return null; //Changed!
     } //Changed!
+
+
 
 
     private TrackLap parseTrackLapText(String raw) { //Changed!
@@ -1384,17 +1400,20 @@ public class AtgScraperService {
     } //Changed!
 
     private TrackLap extractTrackLapFromResultRow(Element tr) { //Changed!
-        Element a = tr.selectFirst("a[data-test-id=result-date]"); //Changed!
-        if (a != null) { //Changed!
-            String href = a.attr("href"); //Changed!
-            Matcher mh = RESULT_HREF_PATTERN.matcher(href); //Changed!
-            if (mh.find()) { //Changed!
-                String trackSlug = mh.group(2).trim(); //Changed!
-                try { //Changed!
-                    int lopp = Integer.parseInt(mh.group(3)); //Changed!
-                    String bankod = toResultBankod(trackSlug); //Changed!
-                    return new TrackLap(bankod, lopp); //Changed!
-                } catch (NumberFormatException ignored) { //Changed!
+        //Changed! funkar för både <a> och <div>
+        Element dateEl = tr.selectFirst("[data-test-id=result-date]"); //Changed!
+        if (dateEl != null) { //Changed!
+            String href = dateEl.hasAttr("href") ? dateEl.attr("href") : ""; //Changed!
+            if (href != null && !href.isBlank()) { //Changed!
+                Matcher mh = RESULT_HREF_PATTERN.matcher(href); //Changed!
+                if (mh.find()) { //Changed!
+                    String trackSlug = mh.group(2).trim(); //Changed!
+                    try { //Changed!
+                        int lopp = Integer.parseInt(mh.group(3)); //Changed!
+                        String bankod = toResultBankod(trackSlug); //Changed!
+                        return new TrackLap(bankod, lopp); //Changed!
+                    } catch (NumberFormatException ignored) { //Changed!
+                    } //Changed!
                 } //Changed!
             } //Changed!
         } //Changed!
@@ -1407,6 +1426,8 @@ public class AtgScraperService {
 
         return null; //Changed!
     } //Changed!
+
+
 
     private record TrackLap(String bankod, Integer lopp) {} //Changed!
 
