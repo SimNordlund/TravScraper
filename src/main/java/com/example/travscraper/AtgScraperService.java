@@ -1146,9 +1146,8 @@ public class AtgScraperService {
             return;
         }
 
-        int safeNr = 0; //Changed! Always 0 now (ignore horseNr)
-
-        String safeName = (horseName == null) ? "" : trimToMax(horseName.trim(), 50);
+        //Changed! horseNr ignoreras här med flit. Previous-starts rader hör inte ihop med dagens startnummer.
+        String safeName = (horseName == null) ? "" : trimToMax(horseName.trim(), 50); //Changed!
 
         int kuskIdx = findHeaderIndex(container, Pattern.compile("\\bkusk\\b", Pattern.CASE_INSENSITIVE)); //Changed!
 
@@ -1162,33 +1161,33 @@ public class AtgScraperService {
             TrackLap tl = extractTrackLapFromResultRow(tr);
             if (datum == null || tl == null) continue;
 
-            Elements tds = tr.select("td"); //Changed!
-            int[] distSparIdx = findDistSparFromTds(tds); //Changed!
-            Integer distans = (distSparIdx[0] >= 0 ? distSparIdx[0] : null); //Changed!
-            Integer spar = (distSparIdx[1] >= 0 ? distSparIdx[1] : null); //Changed!
-            int distIdx = distSparIdx[2]; //Changed!
+            Elements tds = tr.select("td");
+            int[] distSparIdx = findDistSparFromTds(tds);
+            Integer distans = (distSparIdx[0] >= 0 ? distSparIdx[0] : null);
+            Integer spar = (distSparIdx[1] >= 0 ? distSparIdx[1] : null);
+            int distIdx = distSparIdx[2];
 
-            Integer placering = extractPlaceringFromTds(tds, distIdx); //Changed!
-            TidInfo tidInfo = extractTidFromTds(tds, distIdx); //Changed!
-            Double tid = tidInfo.tid(); //Changed!
-            String startmetod = tidInfo.startmetod(); //Changed!
-            String galopp = tidInfo.galopp(); //Changed!
+            Integer placering = extractPlaceringFromTds(tds, distIdx);
+            TidInfo tidInfo = extractTidFromTds(tds, distIdx);
+            Double tid = tidInfo.tid();
+            String startmetod = tidInfo.startmetod();
+            String galopp = tidInfo.galopp();
 
-            Integer pris = extractPrisFromTds(tds, distIdx); //Changed!
-            Integer odds = extractOddsFromTds(tds, distIdx); //Changed!
+            Integer pris = extractPrisFromTds(tds, distIdx);
+            Integer odds = extractOddsFromTds(tds, distIdx);
 
-            String underlag = extractUnderlagFromTds(tds); //Changed!
-            if (underlag == null) underlag = ""; //Changed!
+            String underlag = extractUnderlagFromTds(tds);
+            if (underlag == null) underlag = "";
 
-            String kusk = trimToMax(textAt(tds, kuskIdx), 80); //Changed!
+            String kusk = trimToMax(textAt(tds, kuskIdx), 80);
 
             ResultHorse rh = resultRepo
-                    .findByDatumAndBankodAndLoppAndNamn(datum, tl.bankod(), tl.lopp(), safeName) //Changed!
+                    .findByDatumAndBankodAndLoppAndNamn(datum, tl.bankod(), tl.lopp(), safeName)
                     .orElseGet(() -> ResultHorse.builder()
                             .datum(datum)
                             .bankod(tl.bankod())
                             .lopp(tl.lopp())
-                            .nr(0) //Changed!
+                            .nr(0) //Changed! nya rader från popup-scrapern får alltid nr=0
                             .namn(safeName)
                             .build());
 
@@ -1196,20 +1195,25 @@ public class AtgScraperService {
                 rh.setNamn(safeName);
             }
 
-            if (distans != null) rh.setDistans(distans); //Changed!
-            if (spar != null) rh.setSpar(spar); //Changed!
-            if (placering != null) rh.setPlacering(placering); //Changed!
-            if (tid != null) rh.setTid(tid); //Changed!
-            if (startmetod != null && !startmetod.isBlank()) rh.setStartmetod(startmetod); //Changed!
-            if (galopp != null && !galopp.isBlank()) rh.setGalopp(galopp); //Changed!
+            //Changed! Defaulta endast när nr saknas (null). Rör aldrig ett befintligt nr.
+            if (rh.getNr() == null) { //Changed!
+                rh.setNr(0); //Changed!
+            } //Changed!
 
-            rh.setPris(pris); //Changed!
-            rh.setOdds(odds); //Changed!
+            if (distans != null) rh.setDistans(distans);
+            if (spar != null) rh.setSpar(spar);
+            if (placering != null) rh.setPlacering(placering);
+            if (tid != null) rh.setTid(tid);
+            if (startmetod != null && !startmetod.isBlank()) rh.setStartmetod(startmetod);
+            if (galopp != null && !galopp.isBlank()) rh.setGalopp(galopp);
 
-            if (!underlag.isBlank()) rh.setUnderlag(underlag); //Changed!
-            else if (rh.getUnderlag() == null) rh.setUnderlag(""); //Changed!
+            rh.setPris(pris);
+            rh.setOdds(odds);
 
-            if (kusk != null && !kusk.isBlank()) rh.setKusk(kusk); //Changed!
+            if (!underlag.isBlank()) rh.setUnderlag(underlag);
+            else if (rh.getUnderlag() == null) rh.setUnderlag("");
+
+            if (kusk != null && !kusk.isBlank()) rh.setKusk(kusk);
 
             toSave.add(rh);
         }
@@ -1222,42 +1226,48 @@ public class AtgScraperService {
 
         try {
             resultRepo.saveAll(toSave);
-            log.info("💾 (resultat) Sparade/uppdaterade {} rader från 'Mer info' (nr=0) på {} {} lopp {}",
+            log.info("💾 (resultat) Sparade/uppdaterade {} rader från 'Mer info' (nr=keep/default0) på {} {} lopp {}",
                     toSave.size(), meetingDate, meetingTrackSlug, meetingLap); //Changed!
         } catch (DataIntegrityViolationException dive) {
-            log.warn("⚠️  (resultat) saveAll krockade, kör fallback rad-för-rad (nr=0) på {} {} lopp {}: {}",
+            log.warn("⚠️  (resultat) saveAll krockade, kör fallback rad-för-rad (nr=keep/default0) på {} {} lopp {}: {}",
                     meetingDate, meetingTrackSlug, meetingLap, dive.getMostSpecificCause().getMessage()); //Changed!
 
             for (ResultHorse rh : toSave) {
                 try {
                     ResultHorse existing = resultRepo
-                            .findByDatumAndBankodAndLoppAndNamn(rh.getDatum(), rh.getBankod(), rh.getLopp(), safeName) //Changed!
+                            .findByDatumAndBankodAndLoppAndNamn(rh.getDatum(), rh.getBankod(), rh.getLopp(), safeName)
                             .orElse(rh);
 
                     if (!rh.getNamn().isBlank()) existing.setNamn(rh.getNamn());
 
-                    if (rh.getDistans() != null) existing.setDistans(rh.getDistans()); //Changed!
-                    if (rh.getSpar() != null) existing.setSpar(rh.getSpar()); //Changed!
-                    if (rh.getPlacering() != null) existing.setPlacering(rh.getPlacering()); //Changed!
-                    if (rh.getTid() != null) existing.setTid(rh.getTid()); //Changed!
-                    if (rh.getStartmetod() != null && !rh.getStartmetod().isBlank()) existing.setStartmetod(rh.getStartmetod()); //Changed!
-                    if (rh.getGalopp() != null && !rh.getGalopp().isBlank()) existing.setGalopp(rh.getGalopp()); //Changed!
-                    existing.setPris(rh.getPris()); //Changed!
-                    existing.setOdds(rh.getOdds()); //Changed!
+                    if (rh.getDistans() != null) existing.setDistans(rh.getDistans());
+                    if (rh.getSpar() != null) existing.setSpar(rh.getSpar());
+                    if (rh.getPlacering() != null) existing.setPlacering(rh.getPlacering());
+                    if (rh.getTid() != null) existing.setTid(rh.getTid());
+                    if (rh.getStartmetod() != null && !rh.getStartmetod().isBlank()) existing.setStartmetod(rh.getStartmetod());
+                    if (rh.getGalopp() != null && !rh.getGalopp().isBlank()) existing.setGalopp(rh.getGalopp());
+                    existing.setPris(rh.getPris());
+                    existing.setOdds(rh.getOdds());
 
-                    if (rh.getUnderlag() != null && !rh.getUnderlag().isBlank()) existing.setUnderlag(rh.getUnderlag()); //Changed!
-                    else if (existing.getUnderlag() == null) existing.setUnderlag(""); //Changed!
+                    if (rh.getUnderlag() != null && !rh.getUnderlag().isBlank()) existing.setUnderlag(rh.getUnderlag());
+                    else if (existing.getUnderlag() == null) existing.setUnderlag("");
 
-                    if (rh.getKusk() != null && !rh.getKusk().isBlank()) existing.setKusk(rh.getKusk()); //Changed!
+                    if (rh.getKusk() != null && !rh.getKusk().isBlank()) existing.setKusk(rh.getKusk());
+
+                    //Changed! Defaulta endast när nr saknas (null). Rör aldrig ett befintligt nr.
+                    if (existing.getNr() == null) { //Changed!
+                        existing.setNr(0); //Changed!
+                    } //Changed!
 
                     resultRepo.save(existing);
                 } catch (DataIntegrityViolationException ignored) {
-                    log.warn("⚠️  (resultat) Kunde inte upserta datum={} bankod={} lopp={} nr=0",
+                    log.warn("⚠️  (resultat) Kunde inte upserta datum={} bankod={} lopp={} nr=keep/default0",
                             rh.getDatum(), rh.getBankod(), rh.getLopp()); //Changed!
                 }
             }
         }
     } //Changed!
+
 
     private static String extractUnderlagFromTds(Elements tds) { //Changed!
         if (tds == null || tds.isEmpty()) return ""; //Changed!
