@@ -633,6 +633,8 @@ public class AtgScraperService {
             String nr = parts.length > 0 ? parts[0] : "";
             String name = parts.length > 1 ? parts[1] : "";
 
+            String normalizedName = normalizeHorseNameSimple(name); //Changed!
+
             String bankode = toKnownBankodOrNull(track); //Changed!
             if (bankode == null) { //Changed!
                 log.warn("⚠️  Okänd bana '{}' -> skippar RESULTS (ScrapedHorse) helt", track); //Changed!
@@ -647,7 +649,7 @@ public class AtgScraperService {
             if (existingHorseOpt.isPresent()) {
                 horse = existingHorseOpt.get();
 
-                horse.setNameOfHorse(name);
+                horse.setNameOfHorse(normalizedName); //Changed!
                 horse.setPlacement(place.text().trim());
                 horse.setVOdds(vOdd.text().trim());
                 horse.setPOdds(pMap.getOrDefault(nr, ""));
@@ -655,7 +657,7 @@ public class AtgScraperService {
             } else {
                 horse = ScrapedHorse.builder()
                         .date(date).track(bankode).lap(String.valueOf(lap))
-                        .numberOfHorse(nr).nameOfHorse(name).placement(place.text().trim())
+                        .numberOfHorse(nr).nameOfHorse(normalizedName).placement(place.text().trim()) //Changed!
                         .vOdds(vOdd.text().trim())
                         .pOdds(pMap.getOrDefault(nr, ""))
                         .trioOdds(trioMap.getOrDefault(nr, ""))
@@ -675,6 +677,8 @@ public class AtgScraperService {
 
         List<FutureHorse> toSave = new ArrayList<>();
         Set<String> seen = new HashSet<>();
+
+        List<ResultHorse> oddsUpdates = new ArrayList<>(); //Changed!
 
         for (Element tr : rows) {
             String nr = extractStartNumber(tr);
@@ -696,15 +700,16 @@ public class AtgScraperService {
                 name = tr.text();
             }
 
+            String normalizedName = normalizeHorseNameSimple(name); //Changed!
+
             Element vOddEl = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
             String vOdds = vOddEl != null ? vOddEl.text().trim() : "";
 
-            String bankode = toKnownBankodOrNull(track); //Changed!
-            if (bankode == null) { //Changed!
-                log.warn("⚠️  Okänd bana '{}' -> skippar FUTURE (FutureHorse) helt", track); //Changed!
-                continue; //Changed!
-            } //Changed!
-
+            String bankode = toKnownBankodOrNull(track);
+            if (bankode == null) {
+                log.warn("⚠️  Okänd bana '{}' -> skippar FUTURE (FutureHorse) helt", track);
+                continue;
+            }
 
             Optional<FutureHorse> existing = futureRepo
                     .findByDateAndTrackAndLapAndNumberOfHorse(
@@ -713,7 +718,7 @@ public class AtgScraperService {
             FutureHorse fh;
             if (existing.isPresent()) {
                 fh = existing.get();
-                fh.setNameOfHorse(name);
+                fh.setNameOfHorse(normalizedName); //Changed!
                 fh.setVOdds(vOdds);
             } else {
                 fh = FutureHorse.builder()
@@ -721,12 +726,15 @@ public class AtgScraperService {
                         .track(bankode)
                         .lap(String.valueOf(lap))
                         .numberOfHorse(nr)
-                        .nameOfHorse(name)
+                        .nameOfHorse(normalizedName) //Changed!
                         .vOdds(vOdds)
                         .build();
             }
 
             toSave.add(fh);
+
+            ResultHorse rhOdds = buildOrUpdateResultOddsForFuture(date, bankode, lap, normalizedName, vOdds); //Changed!
+            if (rhOdds != null) oddsUpdates.add(rhOdds); //Changed!
         }
 
         try {
@@ -751,8 +759,28 @@ public class AtgScraperService {
             }
         }
 
+        //Changed! Spara odds till resultat samtidigt
+        if (!oddsUpdates.isEmpty()) { //Changed!
+            try { //Changed!
+                resultRepo.saveAll(oddsUpdates); //Changed!
+                log.info("💾 (future) Uppdaterade {} odds i RESULTAT för {} {} lap {}", oddsUpdates.size(), date, track, lap); //Changed!
+            } catch (DataIntegrityViolationException dive) { //Changed!
+                log.warn("🔁 (future) saveAll odds krockade, retrying per row på {} {} lap {}: {}", //Changed!
+                        date, track, lap, dive.getMostSpecificCause().getMessage()); //Changed!
+                for (ResultHorse rh : oddsUpdates) { //Changed!
+                    try { //Changed!
+                        resultRepo.save(rh); //Changed!
+                    } catch (DataIntegrityViolationException ignored) { //Changed!
+                        log.warn("⚠️  (future) Kunde inte spara odds datum={} bankod={} lopp={} namn={}", //Changed!
+                                rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn()); //Changed!
+                    } //Changed!
+                } //Changed!
+            } //Changed!
+        } //Changed!
+
         log.info("💾 (future) Saved/updated {} horses for {} {} lap {}", toSave.size(), date, track, lap);
     }
+
 
     private String extractStartNumber(Element tr) {
         Element numBtn = tr.selectFirst("button[data-test-start-number]");
@@ -1047,6 +1075,7 @@ public class AtgScraperService {
 
                     //Changed! namn
                     horseName = (parts.length > 1) ? parts[1].trim() : splitTxt; //Changed!
+                    horseName = normalizeHorseNameSimple(horseName); //Changed!
                 } //Changed!
 
                 robustClick(btn, 15_000); //Changed!
@@ -1148,7 +1177,7 @@ public class AtgScraperService {
         }
 
         //Changed! horseNr ignoreras här med flit. Previous-starts rader hör inte ihop med dagens startnummer.
-        String safeName = (horseName == null) ? "" : trimToMax(horseName.trim(), 50); //Changed!
+        String safeName = normalizeHorseNameSimple(horseName); //Changed!
 
         int kuskIdx = findHeaderIndex(container, Pattern.compile("\\bkusk\\b", Pattern.CASE_INSENSITIVE)); //Changed!
 
@@ -1637,6 +1666,14 @@ public class AtgScraperService {
         return s.replace('\u00A0', ' ').trim(); //Changed!
     } //Changed!
 
+    private static String normalizeHorseNameSimple(String raw) { //Changed!
+        String s = normalizeCellText(raw); //Changed!
+        if (s.isBlank()) return ""; //Changed!
+        s = s.replace("'", "").replace("’", ""); //Changed!
+        s = s.toUpperCase(Locale.ROOT); //Changed!
+        return trimToMax(s, 50); //Changed!
+    } //Changed!
+
     private static final int RESULT_BANKOD_MAX_LEN = 20; //Changed!
 
     private static String toResultBankod(String trackLike) { //Changed!
@@ -1759,5 +1796,33 @@ public class AtgScraperService {
         if (tds == null || idx < 0 || idx >= tds.size()) return ""; //Changed!
         return normalizeCellText(tds.get(idx).text()); //Changed!
     } //Changed!
+
+    private ResultHorse buildOrUpdateResultOddsForFuture( //Changed!
+                                                         LocalDate date, String bankod, int lap, String horseName, String vOdds //Changed!
+    ) { //Changed!
+        Integer parsedOdds = parseOddsToInt(vOdds); //Changed!
+        if (parsedOdds == null) return null; //Changed!
+
+        int datum = toYyyymmdd(date); //Changed!
+        String safeName = normalizeHorseNameSimple(horseName); //Changed!
+        if (safeName.isBlank()) return null; //Changed!
+
+        Optional<ResultHorse> existingOpt = resultRepo //Changed!
+                .findByDatumAndBankodAndLoppAndNamn(datum, bankod, lap, safeName); //Changed!
+
+        if (existingOpt.isEmpty()) return null; //Changed!  // skapa aldrig ny rad
+
+        ResultHorse rh = existingOpt.get(); //Changed!
+
+        Integer currentOdds = rh.getOdds(); //Changed!
+        if (currentOdds == null || currentOdds == 999) { //Changed!
+            rh.setOdds(parsedOdds); //Changed!
+            return rh; //Changed!
+        } //Changed!
+
+        return null; //Changed!
+    } //Changed!
+
+
 
 }
