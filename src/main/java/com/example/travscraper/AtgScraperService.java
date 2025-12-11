@@ -1298,24 +1298,27 @@ public class AtgScraperService {
         }
     } //Changed!
 
-
     private static String extractUnderlagFromTds(Elements tds) { //Changed!
         if (tds == null || tds.isEmpty()) return ""; //Changed!
 
         String best = ""; //Changed!
+        Pattern paren = Pattern.compile("\\(([^)]{1,20})\\)"); //Changed!
+
         for (Element td : tds) { //Changed!
             String raw = normalizeCellText(td.text()); //Changed!
             if (raw.isBlank()) continue; //Changed!
 
-            //Changed! Underlag i din vy kommer som (k n), (k), (n) osv
-            if (!(raw.contains("(") && raw.contains(")"))) continue; //Changed!
+            //Changed! Underlag kommer som något i parentes, t.ex. (k m n)
+            Matcher m = paren.matcher(raw); //Changed!
+            while (m.find()) { //Changed!
+                String cleaned = sanitizeUnderlag(m.group(1)); //Changed!
+                if (cleaned.isBlank()) continue; //Changed!
 
-            String cleaned = sanitizeUnderlag(raw); //Changed!
-            if (cleaned.isBlank()) continue; //Changed!
-
-            //Changed! Underlag är normalt kort, så vi prioriterar sista korta träffen
-            if (cleaned.length() <= 4) best = cleaned; //Changed!
-            else if (best.isBlank()) best = cleaned; //Changed!
+                //Changed! Välj "bästa": längre vinner (kmn > kn > k), vid lika längd tar vi senaste
+                if (cleaned.length() > best.length() || cleaned.length() == best.length()) { //Changed!
+                    best = cleaned; //Changed!
+                } //Changed!
+            } //Changed!
         } //Changed!
 
         return best; //Changed!
@@ -1326,18 +1329,21 @@ public class AtgScraperService {
         String t = normalizeCellText(raw).toLowerCase(Locale.ROOT); //Changed!
         if (t.isBlank()) return ""; //Changed!
 
-        //Changed! ta bort parenteser och whitespace: "(k n)" -> "kn"
-        t = t.replace("(", "").replace(")", ""); //Changed!
-        t = t.replaceAll("\\s+", ""); //Changed!
+        //Changed! Behåll bara bokstäver för att kunna tolka "k m n", "k/n", "k,n" osv
+        String letters = t.replaceAll("[^a-z]", ""); //Changed!
 
-        //Changed! behåll bara bokstäver
-        t = t.replaceAll("[^a-z]", ""); //Changed!
+        //Changed! Normalisera till max 3 tecken och stabil ordning: k, m, n
+        boolean hasK = letters.indexOf('k') >= 0; //Changed!
+        boolean hasM = letters.indexOf('m') >= 0; //Changed!
+        boolean hasN = letters.indexOf('n') >= 0; //Changed!
 
-        return t; //Changed!
+        StringBuilder out = new StringBuilder(3); //Changed!
+        if (hasK) out.append('k'); //Changed!
+        if (hasM) out.append('m'); //Changed!
+        if (hasN) out.append('n'); //Changed!
+
+        return out.toString(); //Changed!
     } //Changed!
-
-
-
 
 
     private static String trimToMax(String s, int max) { //Changed!
