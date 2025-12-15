@@ -7,7 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.Optional; //Changed!
+import java.util.Optional;
 
 @Repository
 public interface ResultHorseRepo extends JpaRepository<ResultHorse, Long> {
@@ -29,5 +29,5 @@ public interface ResultHorseRepo extends JpaRepository<ResultHorse, Long> {
         group by r.namn
         having count(r) < :minStarts
     """)
-    List<HorseStartSummary> findHorsesWithStartsLessThan(@Param("minStarts") long minStarts); //Changed!
+    List<HorseStartSummary> findHorsesWithStartsLessThan(@Param("minStarts") long minStarts);
 }

@@ -1,16 +1,16 @@
 package com.example.travscraper;
 
 import com.example.travscraper.entity.FutureHorse;
-import com.example.travscraper.entity.ResultHorse; //Changed!
+import com.example.travscraper.entity.ResultHorse;
 import com.example.travscraper.entity.ScrapedHorse;
 import com.example.travscraper.entity.ScrapedHorseKey;
 import com.example.travscraper.repo.FutureHorseRepo;
-import com.example.travscraper.repo.ResultHorseRepo; //Changed!
+import com.example.travscraper.repo.ResultHorseRepo;
 import com.example.travscraper.repo.ScrapedHorseRepo;
 import com.example.travscraper.repo.StartListHorseRepo;
 import com.microsoft.playwright.*;
-import com.microsoft.playwright.options.AriaRole; //Changed!
-import com.microsoft.playwright.options.LoadState; //Changed!
+import com.microsoft.playwright.options.AriaRole;
+import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.microsoft.playwright.options.WaitUntilState;
 import jakarta.annotation.PostConstruct;
@@ -27,15 +27,15 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets; //Changed!
+import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.regex.Matcher; //Changed!
-import java.util.regex.Pattern; //Changed!
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -47,7 +47,7 @@ public class AtgScraperService {
     private final FutureHorseRepo futureRepo;
     private final StartListHorseRepo startListRepo;
 
-    private final ResultHorseRepo resultRepo; //Changed!
+    private final ResultHorseRepo resultRepo;
 
     private Playwright playwright;
     private Browser browser;
@@ -55,66 +55,65 @@ public class AtgScraperService {
     private final ReentrantLock lock = new ReentrantLock();
 
     private static final DateTimeFormatter URL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final DateTimeFormatter YYMMDD_FORMAT = DateTimeFormatter.ofPattern("yyMMdd"); //Changed!
+    private static final DateTimeFormatter YYMMDD_FORMAT = DateTimeFormatter.ofPattern("yyMMdd");
 
-    private static final Pattern PLACERING_WITH_R = Pattern.compile("^(\\d{1,2})r$"); //Changed!
-    private static final Pattern ISO_DATE = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$"); //Changed!
-    private static final Pattern HAS_LETTER = Pattern.compile(".*\\p{L}.*"); //Changed!
+    private static final Pattern PLACERING_WITH_R = Pattern.compile("^(\\d{1,2})r$");
+    private static final Pattern ISO_DATE = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$");
+    private static final Pattern HAS_LETTER = Pattern.compile(".*\\p{L}.*");
 
-    private static final int RESULTAT_MAX_HORSES_PER_LAP = 999; //Changed!
-    private static final int RESULTAT_MAX_ROWS_PER_HORSE = 999; //Changed!
+    private static final int RESULTAT_MAX_HORSES_PER_LAP = 999;
+    private static final int RESULTAT_MAX_ROWS_PER_HORSE = 999;
 
-    private static final Pattern TRACK_LAP_PATTERN = Pattern.compile("^\\s*(.+?)\\s*-\\s*(\\d+)\\s*$"); //Changed!
-    private static final Pattern DIGITS_ONLY = Pattern.compile("(\\d{6,8})"); //Changed!
+    private static final Pattern TRACK_LAP_PATTERN = Pattern.compile("^\\s*(.+?)\\s*-\\s*(\\d+)\\s*$");
+    private static final Pattern DIGITS_ONLY = Pattern.compile("(\\d{6,8})");
 
-    private static final Pattern RESULT_HREF_PATTERN = Pattern.compile( //Changed!
-            "/spel/(\\d{4}-\\d{2}-\\d{2})/vinnare/([^/]+)/lopp/(\\d+)/resultat" //Changed!
-    ); //Changed!
+    private static final Pattern RESULT_HREF_PATTERN = Pattern.compile(
+            "/spel/(\\d{4}-\\d{2}-\\d{2})/vinnare/([^/]+)/lopp/(\\d+)/resultat"
+    );
 
-    private static final Pattern PRIS_APOSTROPHE = Pattern.compile("^\\s*(\\d{1,6})\\s*['’]\\s*$"); //Changed!
-    private static final Pattern PRIS_THOUSANDS = Pattern.compile("^\\s*(\\d{1,3}(?:[ \\u00A0\\.]\\d{3})+|\\d{4,})\\s*(?:kr)?\\s*$", Pattern.CASE_INSENSITIVE); //Changed!
-    private static final Pattern PRIS_K = Pattern.compile("^\\s*(\\d{1,6})\\s*k\\s*$", Pattern.CASE_INSENSITIVE); //Changed!
-    private static final Pattern ODDS_NUMBER = Pattern.compile("^\\s*(\\d{1,4})(?:[\\.,](\\d{1,2}))?\\s*$"); //Changed!
-
-
-    //Changed! Cookie selectors (för när init-scriptet inte hinner / blockeras)
-    private static final String SEL_COOKIE_BUTTONS = //Changed!
-            "button:has-text(\"Tillåt alla\"):visible, " + //Changed!
-                    "button:has-text(\"Avvisa\"):visible, " + //Changed!
-                    "button:has-text(\"Godkänn alla cookies\"):visible, " + //Changed!
-                    "button:has-text(\"Jag förstår\"):visible"; //Changed!
-
-    //Changed! Mer robusta selectors (dubbelcitat för Playwright :has-text)
-    private static final String SEL_EXPAND_ALL = //Changed!
-            "button[data-test-id=\"expand-startlist-view\"], button:has-text(\"Utöka alla\"), button:has-text(\"Utöka\")"; //Changed!
-
-    //Changed! Inkludera även “Visa mer” som vissa vyer använder
-    private static final String SEL_MER_INFO_VISIBLE = //Changed!
-            "button[data-test-id*=\"previous-starts\"][data-test-id*=\"show-more\"]:visible, " + //Changed!
-                    "button[data-test-id=\"previous-starts-toggle-show-more-button\"]:visible, " + //Changed!
-                    "button:has-text(\"Mer info\"):visible, " + //Changed!
-                    "button:has-text(\"Visa mer\"):visible, " + //Changed!
-                    "button:has-text(\"Visa mer info\"):visible"; //Changed!
-
-    //Changed! ATG renderar ibland tabellen inline (inte modal). Vi matchar båda.
-    private static final String SEL_PREVSTARTS_WRAPPER_ANY = //Changed!
-            "#previous-starts-table-container, " + //Changed!
-                    "div[class*=\"PreviousStarts-styles--tableWrapper\"], " + //Changed!
-                    "div[class*=\"previousStarts-styles--tableWrapper\"], " + //Changed!
-                    "div[class*=\"PreviousStarts\"][class*=\"tableWrapper\"], " + //Changed!
-                    "div[class*=\"previousStarts\"][class*=\"tableWrapper\"]"; //Changed!
-
-    private static final String SEL_PREVSTARTS_ROWS_ANY = //Changed!
-            "#previous-starts-table-container tbody tr, " + //Changed!
-                    "div[class*=\"PreviousStarts-styles--tableWrapper\"] tbody tr, " + //Changed!
-                    "div[class*=\"previousStarts-styles--tableWrapper\"] tbody tr, " + //Changed!
-                    "div[class*=\"PreviousStarts\"][class*=\"tableWrapper\"] tbody tr, " + //Changed!
-                    "div[class*=\"previousStarts\"][class*=\"tableWrapper\"] tbody tr, " + //Changed!
-                    "[data-test-id=\"result-date\"], [data-test-id=\"result-date\"] span"; //Changed!
+    private static final Pattern PRIS_APOSTROPHE = Pattern.compile("^\\s*(\\d{1,6})\\s*['’]\\s*$");
+    private static final Pattern PRIS_THOUSANDS = Pattern.compile("^\\s*(\\d{1,3}(?:[ \\u00A0\\.]\\d{3})+|\\d{4,})\\s*(?:kr)?\\s*$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PRIS_K = Pattern.compile("^\\s*(\\d{1,6})\\s*k\\s*$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ODDS_NUMBER = Pattern.compile("^\\s*(\\d{1,4})(?:[\\.,](\\d{1,2}))?\\s*$");
 
 
 
-    private static final Pattern TIME_VALUE = Pattern.compile("(?:\\d+\\.)?(\\d{1,2})[\\.,](\\d{1,2})"); //Changed!
+    private static final String SEL_COOKIE_BUTTONS =
+            "button:has-text(\"Tillåt alla\"):visible, " +
+                    "button:has-text(\"Avvisa\"):visible, " +
+                    "button:has-text(\"Godkänn alla cookies\"):visible, " +
+                    "button:has-text(\"Jag förstår\"):visible";
+
+
+    private static final String SEL_EXPAND_ALL =
+            "button[data-test-id=\"expand-startlist-view\"], button:has-text(\"Utöka alla\"), button:has-text(\"Utöka\")";
+
+
+    private static final String SEL_MER_INFO_VISIBLE =
+            "button[data-test-id*=\"previous-starts\"][data-test-id*=\"show-more\"]:visible, " +
+                    "button[data-test-id=\"previous-starts-toggle-show-more-button\"]:visible, " +
+                    "button:has-text(\"Mer info\"):visible, " +
+                    "button:has-text(\"Visa mer\"):visible, " +
+                    "button:has-text(\"Visa mer info\"):visible";
+
+    private static final String SEL_PREVSTARTS_WRAPPER_ANY =
+            "#previous-starts-table-container, " +
+                    "div[class*=\"PreviousStarts-styles--tableWrapper\"], " +
+                    "div[class*=\"previousStarts-styles--tableWrapper\"], " +
+                    "div[class*=\"PreviousStarts\"][class*=\"tableWrapper\"], " +
+                    "div[class*=\"previousStarts\"][class*=\"tableWrapper\"]";
+
+    private static final String SEL_PREVSTARTS_ROWS_ANY =
+            "#previous-starts-table-container tbody tr, " +
+                    "div[class*=\"PreviousStarts-styles--tableWrapper\"] tbody tr, " +
+                    "div[class*=\"previousStarts-styles--tableWrapper\"] tbody tr, " +
+                    "div[class*=\"PreviousStarts\"][class*=\"tableWrapper\"] tbody tr, " +
+                    "div[class*=\"previousStarts\"][class*=\"tableWrapper\"] tbody tr, " +
+                    "[data-test-id=\"result-date\"], [data-test-id=\"result-date\"] span";
+
+
+
+    private static final Pattern TIME_VALUE = Pattern.compile("(?:\\d+\\.)?(\\d{1,2})[\\.,](\\d{1,2})");
 
 
     private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
@@ -179,7 +178,7 @@ public class AtgScraperService {
                 .toLowerCase();
     }
 
-    private static final String DEFAULT_BANKOD = "XX"; //Changed!
+    private static final String DEFAULT_BANKOD = "XX";
 
 
     private List<String> tracksFor(LocalDate date) {
@@ -232,7 +231,7 @@ public class AtgScraperService {
         browser = playwright.chromium().launch(
                 new BrowserType.LaunchOptions()
                         .setHeadless(true)
-                        .setArgs(List.of("--disable-blink-features=AutomationControlled")) //Changed!
+                        .setArgs(List.of("--disable-blink-features=AutomationControlled"))
         );
         log.info("🖥️  Headless browser launched");
     }
@@ -316,25 +315,25 @@ public class AtgScraperService {
         }
     }
 
-    private void ensureContext() { //Changed!
-        if (ctx != null) return; //Changed!
+    private void ensureContext() {
+        if (ctx != null) return;
 
-        ctx = browser.newContext( //Changed!
-                new Browser.NewContextOptions() //Changed!
-                        .setLocale("sv-SE") //Changed!
-                        .setTimezoneId("Europe/Stockholm") //Changed!
-                        .setGeolocation(59.33, 18.06) //Changed!
-                        .setPermissions(List.of("geolocation")) //Changed!
-                        .setViewportSize(1600, 900) //Changed!
-                        .setUserAgent( //Changed!
+        ctx = browser.newContext(
+                new Browser.NewContextOptions()
+                        .setLocale("sv-SE")
+                        .setTimezoneId("Europe/Stockholm")
+                        .setGeolocation(59.33, 18.06)
+                        .setPermissions(List.of("geolocation"))
+                        .setViewportSize(1600, 900)
+                        .setUserAgent(
                                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
                                         "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                                        "Chrome/125.0.0.0 Safari/537.36") //Changed!
-        ); //Changed!
+                                        "Chrome/125.0.0.0 Safari/537.36")
+        );
 
         ctx.addInitScript(""" 
           () => {
-            //Changed! försök minska anti-bot-detektering
+             försök minska anti-bot-detektering
             try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch(e) {}
             try { Object.defineProperty(navigator, 'languages', { get: () => ['sv-SE','sv','en-US','en'] }); } catch(e) {}
             try { Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] }); } catch(e) {}
@@ -357,11 +356,11 @@ public class AtgScraperService {
             setTimeout(tryClick, 400);
             setTimeout(tryClick, 4000);
           }
-        """); //Changed!
-    } //Changed!
+        """);
+    }
 
     private void processDateTrack(LocalDate date, String track) {
-        ensureContext(); //Changed!
+        ensureContext();
 
         int consecutiveMisses = 0;
 
@@ -472,7 +471,7 @@ public class AtgScraperService {
     }
 
     private void processDateTrackFuture(LocalDate date, String track) {
-        ensureContext(); //Changed!
+        ensureContext();
 
         int consecutiveMisses = 0;
 
@@ -586,19 +585,19 @@ public class AtgScraperService {
         return map;
     }
 
-    private static String trackKey(String trackLike) { //Changed!
-        if (trackLike == null) return ""; //Changed!
-        String k = slugify(trackLike); //Changed!
-        k = k.replace('-', ' ').replace('_', ' '); //Changed!
-        k = k.replaceAll("\\s+", " ").trim(); //Changed!
-        return k; //Changed!
-    } //Changed!
+    private static String trackKey(String trackLike) {
+        if (trackLike == null) return "";
+        String k = slugify(trackLike);
+        k = k.replace('-', ' ').replace('_', ' ');
+        k = k.replaceAll("\\s+", " ").trim();
+        return k;
+    }
 
-    private static String toKnownBankodOrNull(String trackLike) { //Changed!
-        String key = trackKey(trackLike); //Changed!
-        if (key.isBlank()) return null; //Changed!
-        return FULLNAME_TO_BANKODE.get(key); //Changed!
-    } //Changed!
+    private static String toKnownBankodOrNull(String trackLike) {
+        String key = trackKey(trackLike);
+        if (key.isBlank()) return null;
+        return FULLNAME_TO_BANKODE.get(key);
+    }
 
 
     private Map<String, String> extractTrioMap(Page page) {
@@ -633,13 +632,13 @@ public class AtgScraperService {
             String nr = parts.length > 0 ? parts[0] : "";
             String name = parts.length > 1 ? parts[1] : "";
 
-            String normalizedName = normalizeHorseNameSimple(name); //Changed!
+            String normalizedName = normalizeHorseNameSimple(name);
 
-            String bankode = toKnownBankodOrNull(track); //Changed!
-            if (bankode == null) { //Changed!
-                log.warn("⚠️  Okänd bana '{}' -> skippar RESULTS (ScrapedHorse) helt", track); //Changed!
-                continue; //Changed!
-            } //Changed!
+            String bankode = toKnownBankodOrNull(track);
+            if (bankode == null) {
+                log.warn("⚠️  Okänd bana '{}' -> skippar RESULTS (ScrapedHorse) helt", track);
+                continue;
+            }
 
             ScrapedHorseKey key = new ScrapedHorseKey(date, bankode, String.valueOf(lap), nr);
 
@@ -649,7 +648,7 @@ public class AtgScraperService {
             if (existingHorseOpt.isPresent()) {
                 horse = existingHorseOpt.get();
 
-                horse.setNameOfHorse(normalizedName); //Changed!
+                horse.setNameOfHorse(normalizedName);
                 horse.setPlacement(place.text().trim());
                 horse.setVOdds(vOdd.text().trim());
                 horse.setPOdds(pMap.getOrDefault(nr, ""));
@@ -657,7 +656,7 @@ public class AtgScraperService {
             } else {
                 horse = ScrapedHorse.builder()
                         .date(date).track(bankode).lap(String.valueOf(lap))
-                        .numberOfHorse(nr).nameOfHorse(normalizedName).placement(place.text().trim()) //Changed!
+                        .numberOfHorse(nr).nameOfHorse(normalizedName).placement(place.text().trim())
                         .vOdds(vOdd.text().trim())
                         .pOdds(pMap.getOrDefault(nr, ""))
                         .trioOdds(trioMap.getOrDefault(nr, ""))
@@ -678,7 +677,7 @@ public class AtgScraperService {
         List<FutureHorse> toSave = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
-        List<ResultHorse> oddsUpdates = new ArrayList<>(); //Changed!
+        List<ResultHorse> oddsUpdates = new ArrayList<>();
 
         for (Element tr : rows) {
             String nr = extractStartNumber(tr);
@@ -700,7 +699,7 @@ public class AtgScraperService {
                 name = tr.text();
             }
 
-            String normalizedName = normalizeHorseNameSimple(name); //Changed!
+            String normalizedName = normalizeHorseNameSimple(name);
 
             Element vOddEl = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
             String vOdds = vOddEl != null ? vOddEl.text().trim() : "";
@@ -718,7 +717,7 @@ public class AtgScraperService {
             FutureHorse fh;
             if (existing.isPresent()) {
                 fh = existing.get();
-                fh.setNameOfHorse(normalizedName); //Changed!
+                fh.setNameOfHorse(normalizedName);
                 fh.setVOdds(vOdds);
             } else {
                 fh = FutureHorse.builder()
@@ -726,15 +725,15 @@ public class AtgScraperService {
                         .track(bankode)
                         .lap(String.valueOf(lap))
                         .numberOfHorse(nr)
-                        .nameOfHorse(normalizedName) //Changed!
+                        .nameOfHorse(normalizedName)
                         .vOdds(vOdds)
                         .build();
             }
 
             toSave.add(fh);
 
-            ResultHorse rhOdds = buildOrUpdateResultOddsForFuture(date, bankode, lap, normalizedName, vOdds); //Changed!
-            if (rhOdds != null) oddsUpdates.add(rhOdds); //Changed!
+            ResultHorse rhOdds = buildOrUpdateResultOddsForFuture(date, bankode, lap, normalizedName, vOdds);
+            if (rhOdds != null) oddsUpdates.add(rhOdds);
         }
 
         try {
@@ -759,24 +758,23 @@ public class AtgScraperService {
             }
         }
 
-        //Changed! Spara odds till resultat samtidigt
-        if (!oddsUpdates.isEmpty()) { //Changed!
-            try { //Changed!
-                resultRepo.saveAll(oddsUpdates); //Changed!
-                log.info("💾 (future) Uppdaterade {} odds i RESULTAT för {} {} lap {}", oddsUpdates.size(), date, track, lap); //Changed!
-            } catch (DataIntegrityViolationException dive) { //Changed!
-                log.warn("🔁 (future) saveAll odds krockade, retrying per row på {} {} lap {}: {}", //Changed!
-                        date, track, lap, dive.getMostSpecificCause().getMessage()); //Changed!
-                for (ResultHorse rh : oddsUpdates) { //Changed!
-                    try { //Changed!
-                        resultRepo.save(rh); //Changed!
-                    } catch (DataIntegrityViolationException ignored) { //Changed!
-                        log.warn("⚠️  (future) Kunde inte spara odds datum={} bankod={} lopp={} namn={}", //Changed!
-                                rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn()); //Changed!
-                    } //Changed!
-                } //Changed!
-            } //Changed!
-        } //Changed!
+        if (!oddsUpdates.isEmpty()) {
+            try {
+                resultRepo.saveAll(oddsUpdates);
+                log.info("💾 (future) Uppdaterade {} odds i RESULTAT för {} {} lap {}", oddsUpdates.size(), date, track, lap);
+            } catch (DataIntegrityViolationException dive) {
+                log.warn("🔁 (future) saveAll odds krockade, retrying per row på {} {} lap {}: {}",
+                        date, track, lap, dive.getMostSpecificCause().getMessage());
+                for (ResultHorse rh : oddsUpdates) {
+                    try {
+                        resultRepo.save(rh);
+                    } catch (DataIntegrityViolationException ignored) {
+                        log.warn("⚠️  (future) Kunde inte spara odds datum={} bankod={} lopp={} namn={}",
+                                rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn());
+                    }
+                }
+            }
+        }
 
         log.info("💾 (future) Saved/updated {} horses for {} {} lap {}", toSave.size(), date, track, lap);
     }
@@ -801,354 +799,344 @@ public class AtgScraperService {
         return "";
     }
 
-    //Changed!
-    public void runResultatPopupScrape() { //Changed!
-        scrapeResultatPopupsOnly(); //Changed!
-    } //Changed!
 
-    //Changed!
-    public void scrapeResultatPopupsOnly() { //Changed!
-        if (!lock.tryLock()) { //Changed!
-            log.warn("⏳ Previous scrape still running – skipping (resultat popups)"); //Changed!
-            return; //Changed!
-        } //Changed!
-        try { //Changed!
-            LocalDate end = Optional.ofNullable(props.getEndDateResultatPopup()) //Changed!
-                    .orElse(LocalDate.now(ZoneId.of("Europe/Stockholm")).minusDays(1)); //Changed!
-            LocalDate start = Optional.ofNullable(props.getStartDateResultatPopup()) //Changed!
-                    .orElse(end); //Changed!
-
-            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) { //Changed!
-                log.info("📆  Scraping RESULTAT (popup) {}", date); //Changed!
-                List<String> tracks = tracksFor(date); //Changed!
-                for (String track : tracks) { //Changed!
-                    processDateTrackResultatPopups(date, track); //Changed!
-                } //Changed!
-            } //Changed!
-        } finally { //Changed!
-            lock.unlock(); //Changed!
-        } //Changed!
-    } //Changed!
+    public void runResultatPopupScrape() {
+        scrapeResultatPopupsOnly();
+    }
 
 
-    //Changed!
-    private void processDateTrackResultatPopups(LocalDate date, String track) { //Changed!
-        ensureContext(); //Changed!
+    public void scrapeResultatPopupsOnly() {
+        if (!lock.tryLock()) {
+            log.warn("⏳ Previous scrape still running – skipping (resultat popups)");
+            return;
+        }
+        try {
+            LocalDate end = Optional.ofNullable(props.getEndDateResultatPopup())
+                    .orElse(LocalDate.now(ZoneId.of("Europe/Stockholm")).minusDays(1));
+            LocalDate start = Optional.ofNullable(props.getStartDateResultatPopup())
+                    .orElse(end);
 
-        int consecutiveMisses = 0; //Changed!
-        for (int lap = 1; lap <= 15; lap++) { //Changed!
-            String url = String.format( //Changed!
-                    "https://www.atg.se/spel/%s/vinnare/%s/lopp/%d", //Changed!
-                    date.format(URL_DATE_FORMAT), track, lap); //Changed!
-
-            try (Page page = ctx.newPage()) { //Changed!
-                Page.NavigateOptions nav = new Page.NavigateOptions() //Changed!
-                        .setWaitUntil(WaitUntilState.NETWORKIDLE) //Changed!
-                        .setTimeout(60_000); //Changed!
-
-                page.navigate(url, nav); //Changed!
-
-                if (page.url().contains("/spel/kalender/")) { //Changed!
-                    if (++consecutiveMisses >= 2) break; //Changed!
-                    continue; //Changed!
-                } //Changed!
-
-                String finalUrl = page.url(); //Changed!
-                if (finalUrl.contains("/lopp/") && !finalUrl.contains("/lopp/" + lap)) { //Changed!
-                    log.info("↪️  (resultat) lopp {} redirectade till {}, hoppar", lap, finalUrl); //Changed!
-                    if (++consecutiveMisses >= 2) break; //Changed!
-                    continue; //Changed!
-                } //Changed!
-
-                //Changed! Vänta på cookie/rows, och stäng cookie om den är i vägen
-                page.waitForSelector( //Changed!
-                        "button:has-text(\"Tillåt alla\"):visible, " + //Changed!
-                                "button:has-text(\"Avvisa\"):visible, " + //Changed!
-                                "tr[data-test-id^=horse-row]", //Changed!
-                        new Page.WaitForSelectorOptions().setTimeout(60_000)); //Changed!
-
-                dismissCookiesIfPresent(page); //Changed!
-
-                page.waitForSelector("tr[data-test-id^=horse-row]", //Changed!
-                        new Page.WaitForSelectorOptions().setTimeout(60_000)); //Changed!
-
-                if (isCancelledRace(page)) { //Changed!
-                    if (++consecutiveMisses >= 2) break; //Changed!
-                    continue; //Changed!
-                } //Changed!
-
-                if (!isCorrectTrack(page, track, date)) return; //Changed!
-
-                consecutiveMisses = 0; //Changed!
-
-                scrapeResultatFromPopups(page, date, track, lap); //Changed!
-
-            } catch (PlaywrightException e) { //Changed!
-                log.warn("⚠️  (resultat) Playwright-fel på {}: {}", url, e.getMessage()); //Changed!
-                if (e.getMessage() != null && e.getMessage().contains("Timeout")) { //Changed!
-                    if (++consecutiveMisses >= 2) break; //Changed!
-                    continue; //Changed!
-                } //Changed!
-                break; //Changed!
-            } //Changed!
-        } //Changed!
-    } //Changed!
-
-    //Changed!
-    private void dismissCookiesIfPresent(Page page) { //Changed!
-        try { //Changed!
-            Locator cookie = page.locator(SEL_COOKIE_BUTTONS); //Changed!
-            if (cookie.count() > 0) { //Changed!
-                robustClick(cookie.first(), 10_000); //Changed!
-                try { page.waitForTimeout(250); } catch (PlaywrightException ignored) {} //Changed!
-            } //Changed!
-        } catch (PlaywrightException ignored) { //Changed!
-        } //Changed!
-    } //Changed!
-
-    private void robustClick(Locator btn, int timeoutMs) { //Changed!
-        try { //Changed!
-            btn.scrollIntoViewIfNeeded(); //Changed!
-        } catch (PlaywrightException ignored) { //Changed!
-        } //Changed!
-
-        try { //Changed!
-            btn.click(new Locator.ClickOptions().setTimeout(timeoutMs).setForce(true)); //Changed!
-            return; //Changed!
-        } catch (PlaywrightException e) { //Changed!
-            try { //Changed!
-                btn.evaluate("el => el.click()"); //Changed!
-            } catch (PlaywrightException ignored) { //Changed!
-            } //Changed!
-        } //Changed!
-    } //Changed!
-
-    private void clickExpandAllIfPresent(Page page) { //Changed!
-        dismissCookiesIfPresent(page); //Changed!
-
-        Locator expand = page.locator(SEL_EXPAND_ALL); //Changed!
-
-        if (expand.count() == 0) { //Changed!
-            try { //Changed!
-                expand = page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName( //Changed!
-                        Pattern.compile("Utöka\\s+alla|Utöka", Pattern.CASE_INSENSITIVE))); //Changed!
-            } catch (PlaywrightException ignored) { //Changed!
-            } //Changed!
-        } //Changed!
-
-        if (expand.count() <= 0) { //Changed!
-            log.info("🟦 (resultat) Hittade ingen 'Utöka/Utöka alla' på {}", page.url()); //Changed!
-            return; //Changed!
-        } //Changed!
-
-        Locator btn = expand.first(); //Changed!
-        try { //Changed!
-            robustClick(btn, 15_000); //Changed!
-            try { page.waitForLoadState(LoadState.NETWORKIDLE); } catch (PlaywrightException ignored) {} //Changed!
-        } catch (PlaywrightException e) { //Changed!
-            log.warn("⚠️  (resultat) Kunde inte klicka 'Utöka/Utöka alla' på {}: {}", page.url(), e.getMessage()); //Changed!
-        } //Changed!
-
-        try { //Changed!
-            page.waitForSelector(SEL_MER_INFO_VISIBLE, new Page.WaitForSelectorOptions() //Changed!
-                    .setTimeout(6_000) //Changed!
-                    .setState(WaitForSelectorState.ATTACHED)); //Changed!
-        } catch (PlaywrightException ignored) { //Changed!
-        } //Changed!
-    } //Changed!
-
-    //Changed!
-    private void tryExpandSomeRowsIfMerInfoHidden(Page page) { //Changed!
-        // Om “Mer info” finns i DOM men inte är visible: expandera ALLA rader (inte bara 3) //Changed!
-        int rawText = page.locator("text=Mer info").count(); //Changed!
-        int visibleButtons = page.locator(SEL_MER_INFO_VISIBLE).count(); //Changed!
-        if (rawText == 0 || visibleButtons > 0) return; //Changed!
-
-        Locator rows = page.locator("tr[data-test-id^=horse-row]"); //Changed!
-        int n = Math.min(rows.count(), RESULTAT_MAX_HORSES_PER_LAP); //Changed! (was 3)
-
-        for (int i = 0; i < n; i++) { //Changed!
-            Locator row = rows.nth(i); //Changed!
-            try { //Changed!
-                // Försök klicka en expander-knapp om den finns, annars klicka hela raden //Changed!
-                Locator expander = row.locator("button[aria-expanded], [aria-expanded]"); //Changed!
-                if (expander.count() > 0) { //Changed!
-                    String ae = expander.first().getAttribute("aria-expanded"); //Changed!
-                    if (ae == null || !"true".equalsIgnoreCase(ae)) { //Changed!
-                        robustClick(expander.first(), 3_000); //Changed!
-                    } //Changed!
-                } else { //Changed!
-                    robustClick(row, 3_000); //Changed!
-                } //Changed!
-            } catch (PlaywrightException ignored) { //Changed!
-            } //Changed!
-        } //Changed!
-
-        try { page.waitForTimeout(250); } catch (PlaywrightException ignored) {} //Changed!
-    } //Changed!
+            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                log.info("📆  Scraping RESULTAT (popup) {}", date);
+                List<String> tracks = tracksFor(date);
+                for (String track : tracks) {
+                    processDateTrackResultatPopups(date, track);
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
 
 
-    private Locator findMerInfoButtons(Page page) { //Changed!
-        //Changed! Försök data-test-id (exakt + contains)
-        Locator byDataTestId = page.locator( //Changed!
-                "button[data-test-id=\"previous-starts-toggle-show-more-button\"]:visible, " + //Changed!
-                        "button[data-test-id*=\"previous-starts\"][data-test-id*=\"show-more\"]:visible" //Changed!
-        ); //Changed!
-        if (byDataTestId.count() > 0) return byDataTestId; //Changed!
 
-        //Changed! Text-varianter
-        Locator byText = page.locator( //Changed!
-                "button:has-text(\"Mer info\"):visible, " + //Changed!
-                        "button:has-text(\"Visa mer\"):visible, " + //Changed!
-                        "button:has-text(\"Visa mer info\"):visible, " + //Changed!
-                        "a:has-text(\"Mer info\"):visible, " + //Changed!
-                        "[role=button]:has-text(\"Mer info\"):visible" //Changed!
-        ); //Changed!
-        if (byText.count() > 0) return byText; //Changed!
+    private void processDateTrackResultatPopups(LocalDate date, String track) {
+        ensureContext();
 
-        //Changed! Role-fallback
-        try { //Changed!
-            Locator byRole = page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions() //Changed!
-                    .setName(Pattern.compile("Mer\\s+info|Visa\\s+mer(\\s+info)?", Pattern.CASE_INSENSITIVE))); //Changed!
-            if (byRole.count() > 0) return byRole; //Changed!
-        } catch (PlaywrightException ignored) { //Changed!
-        } //Changed!
+        int consecutiveMisses = 0;
+        for (int lap = 1; lap <= 15; lap++) {
+            String url = String.format(
+                    "https://www.atg.se/spel/%s/vinnare/%s/lopp/%d",
+                    date.format(URL_DATE_FORMAT), track, lap);
 
-        //Changed! Sista fallback: visible buttons som innehåller text
-        return page.locator("button:visible").filter(new Locator.FilterOptions().setHasText( //Changed!
-                Pattern.compile("Mer\\s+info|Visa\\s+mer(\\s+info)?", Pattern.CASE_INSENSITIVE))); //Changed!
-    } //Changed!
+            try (Page page = ctx.newPage()) {
+                Page.NavigateOptions nav = new Page.NavigateOptions()
+                        .setWaitUntil(WaitUntilState.NETWORKIDLE)
+                        .setTimeout(60_000);
 
-    private void scrapeResultatFromPopups(Page page, LocalDate meetingDate, String meetingTrackSlug, int meetingLap) { //Changed!
-        clickExpandAllIfPresent(page); //Changed!
-        tryExpandSomeRowsIfMerInfoHidden(page); //Changed!
+                page.navigate(url, nav);
 
-        //Changed! Debug-räknare
-        int textCount = page.locator("text=Mer info").count(); //Changed!
-        int dataTestIdCount = page.locator("[data-test-id*=\"previous-starts\"][data-test-id*=\"show-more\"]").count(); //Changed!
+                if (page.url().contains("/spel/kalender/")) {
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
 
-        Locator merInfoButtons = findMerInfoButtons(page); //Changed!
-        int total = merInfoButtons.count(); //Changed!
+                String finalUrl = page.url();
+                if (finalUrl.contains("/lopp/") && !finalUrl.contains("/lopp/" + lap)) {
+                    log.info("↪️  (resultat) lopp {} redirectade till {}, hoppar", lap, finalUrl);
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
 
-        if (total <= 0) { //Changed!
-            log.info("🟦 (resultat) Inga 'Mer info/Visa mer' hittades på {} {} lopp {} (selCount={}, textCount={}, dataTestIdCount={})", //Changed!
-                    meetingDate, meetingTrackSlug, meetingLap, total, textCount, dataTestIdCount); //Changed!
-            return; //Changed!
-        } //Changed!
+                page.waitForSelector(
+                        "button:has-text(\"Tillåt alla\"):visible, " +
+                                "button:has-text(\"Avvisa\"):visible, " +
+                                "tr[data-test-id^=horse-row]",
+                        new Page.WaitForSelectorOptions().setTimeout(60_000));
 
-        int toClick = Math.min(total, RESULTAT_MAX_HORSES_PER_LAP); //Changed!
-        log.info("🟩 (resultat) Hittade {} 'Mer info/Visa mer' på {} {} lopp {} (klickar {})", //Changed!
-                total, meetingDate, meetingTrackSlug, meetingLap, toClick); //Changed!
+                dismissCookiesIfPresent(page);
 
-        for (int i = 0; i < toClick; i++) { //Changed!
-            Locator btn = merInfoButtons.nth(i); //Changed!
-            String horseName = ""; //Changed!
-            Integer horseNr = null; //Changed!
-            Locator scopeRow = null; //Changed!
+                page.waitForSelector("tr[data-test-id^=horse-row]",
+                        new Page.WaitForSelectorOptions().setTimeout(60_000));
 
-            try { //Changed!
-                Locator tr = btn.locator("xpath=ancestor::tr[1]"); //Changed!
-                scopeRow = tr; //Changed!
+                if (isCancelledRace(page)) {
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
 
-                Locator split = tr.locator("[startlist-export-id^='startlist-cell-horse-split-export']"); //Changed!
-                if (split.count() == 0) { //Changed!
-                    Locator prev = tr.locator("xpath=preceding-sibling::tr[1]"); //Changed!
-                    if (prev.count() > 0) { //Changed!
-                        split = prev.locator("[startlist-export-id^='startlist-cell-horse-split-export']"); //Changed!
-                    } //Changed!
-                } //Changed!
+                if (!isCorrectTrack(page, track, date)) return;
 
-                if (split.count() > 0) { //Changed!
-                    String splitTxt = split.first().innerText().trim(); //Changed!
-                    String[] parts = splitTxt.split("\\s+", 2); //Changed!
+                consecutiveMisses = 0;
 
-                    //Changed! startnummer
-                    if (parts.length > 0) { //Changed!
-                        String nrStr = parts[0].replaceAll("\\D+", ""); //Changed!
-                        if (!nrStr.isBlank()) { //Changed!
-                            try { //Changed!
-                                horseNr = Integer.parseInt(nrStr); //Changed!
-                            } catch (NumberFormatException ignored) { //Changed!
-                            } //Changed!
-                        } //Changed!
-                    } //Changed!
+                scrapeResultatFromPopups(page, date, track, lap);
 
-                    //Changed! namn
-                    horseName = (parts.length > 1) ? parts[1].trim() : splitTxt; //Changed!
-                    horseName = normalizeHorseNameSimple(horseName); //Changed!
-                } //Changed!
+            } catch (PlaywrightException e) {
+                log.warn("⚠️  (resultat) Playwright-fel på {}: {}", url, e.getMessage());
+                if (e.getMessage() != null && e.getMessage().contains("Timeout")) {
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
+                break;
+            }
+        }
+    }
 
-                robustClick(btn, 15_000); //Changed!
 
-                Locator waitScope = btn.locator("xpath=ancestor::tr[1]"); //Changed!
-                Locator rowsInScope = waitScope.locator("tbody tr"); //Changed!
-                if (rowsInScope.count() == 0) { //Changed!
-                    rowsInScope = waitScope.locator("[data-test-id=\"result-date\"]"); //Changed!
-                } //Changed!
-                if (rowsInScope.count() > 0) { //Changed!
-                    rowsInScope.first().waitFor(new Locator.WaitForOptions().setTimeout(30_000)); //Changed!
-                } else { //Changed!
-                    page.waitForSelector(SEL_PREVSTARTS_ROWS_ANY, //Changed!
-                            new Page.WaitForSelectorOptions().setTimeout(30_000).setState(WaitForSelectorState.ATTACHED)); //Changed!
-                } //Changed!
+    private void dismissCookiesIfPresent(Page page) {
+        try {
+            Locator cookie = page.locator(SEL_COOKIE_BUTTONS);
+            if (cookie.count() > 0) {
+                robustClick(cookie.first(), 10_000);
+                try { page.waitForTimeout(250); } catch (PlaywrightException ignored) {}
+            }
+        } catch (PlaywrightException ignored) {
+        }
+    }
 
-                String fragment = waitScope.evaluate("el => el.outerHTML").toString(); //Changed!
+    private void robustClick(Locator btn, int timeoutMs) {
+        try {
+            btn.scrollIntoViewIfNeeded();
+        } catch (PlaywrightException ignored) {
+        }
 
-                parseAndPersistResultatFromPreviousStarts(fragment, meetingDate, meetingTrackSlug, meetingLap, horseName, horseNr, i); //Changed!
+        try {
+            btn.click(new Locator.ClickOptions().setTimeout(timeoutMs).setForce(true));
+            return;
+        } catch (PlaywrightException e) {
+            try {
+                btn.evaluate("el => el.click()");
+            } catch (PlaywrightException ignored) {
+            }
+        }
+    }
 
-                closePreviousStarts(page, btn, waitScope); //Changed!
+    private void clickExpandAllIfPresent(Page page) {
+        dismissCookiesIfPresent(page);
 
-            } catch (PlaywrightException e) { //Changed!
-                log.warn("⚠️  (resultat) Kunde inte öppna/scrapa 'Mer info/Visa mer' på {} {} lopp {}: {}", //Changed!
-                        meetingDate, meetingTrackSlug, meetingLap, e.getMessage()); //Changed!
-                try { //Changed!
-                    if (scopeRow != null) closePreviousStarts(page, btn, scopeRow); //Changed!
-                    else closePreviousStarts(page, btn, null); //Changed!
-                } catch (PlaywrightException ignored) { //Changed!
-                } //Changed!
-            } //Changed!
-        } //Changed!
+        Locator expand = page.locator(SEL_EXPAND_ALL);
 
-    } //Changed!
+        if (expand.count() == 0) {
+            try {
+                expand = page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(
+                        Pattern.compile("Utöka\\s+alla|Utöka", Pattern.CASE_INSENSITIVE)));
+            } catch (PlaywrightException ignored) {
+            }
+        }
 
-    private void closePreviousStarts(Page page, Locator merInfoBtn, Locator scopeRow) { //Changed!
-        try { page.keyboard().press("Escape"); } catch (PlaywrightException ignored) {} //Changed!
+        if (expand.count() <= 0) {
+            log.info("🟦 (resultat) Hittade ingen 'Utöka/Utöka alla' på {}", page.url());
+            return;
+        }
 
-        try { //Changed!
-            Locator close = page.locator( //Changed!
-                    "button[aria-label='Stäng'], button[aria-label='Close'], button:has-text(\"Stäng\"), button:has-text(\"Close\")" //Changed!
-            ); //Changed!
-            if (close.count() > 0) { //Changed!
-                robustClick(close.first(), 5_000); //Changed!
-            } //Changed!
-        } catch (PlaywrightException ignored) { //Changed!
-        } //Changed!
+        Locator btn = expand.first();
+        try {
+            robustClick(btn, 15_000);
+            try { page.waitForLoadState(LoadState.NETWORKIDLE); } catch (PlaywrightException ignored) {}
+        } catch (PlaywrightException e) {
+            log.warn("⚠️  (resultat) Kunde inte klicka 'Utöka/Utöka alla' på {}: {}", page.url(), e.getMessage());
+        }
 
-        //Changed! Inline-toggle: klicka samma knapp igen om scoped rows fortfarande verkar öppna
-        try { //Changed!
-            if (scopeRow != null) { //Changed!
-                if (scopeRow.locator(SEL_PREVSTARTS_WRAPPER_ANY).count() > 0) { //Changed!
-                    robustClick(merInfoBtn, 5_000); //Changed!
-                } //Changed!
-            } else { //Changed!
-                //Changed! fallback utan scope
-                if (page.locator(SEL_PREVSTARTS_WRAPPER_ANY).count() > 0) { //Changed!
-                    robustClick(merInfoBtn, 5_000); //Changed!
-                } //Changed!
-            } //Changed!
-        } catch (PlaywrightException ignored) { //Changed!
-        } //Changed!
-    } //Changed!
+        try {
+            page.waitForSelector(SEL_MER_INFO_VISIBLE, new Page.WaitForSelectorOptions()
+                    .setTimeout(6_000)
+                    .setState(WaitForSelectorState.ATTACHED));
+        } catch (PlaywrightException ignored) {
+        }
+    }
 
-    private void parseAndPersistResultatFromPreviousStarts( //Changed!
-                                                            String html, //Changed!
-                                                            LocalDate meetingDate, //Changed!
-                                                            String meetingTrackSlug, //Changed!
-                                                            int meetingLap, //Changed!
-                                                            String horseName, //Changed!
-                                                            Integer horseNr, //Changed!
-                                                            int horseIdx //Changed!
-    ) { //Changed!
+
+    private void tryExpandSomeRowsIfMerInfoHidden(Page page) {
+        int rawText = page.locator("text=Mer info").count();
+        int visibleButtons = page.locator(SEL_MER_INFO_VISIBLE).count();
+        if (rawText == 0 || visibleButtons > 0) return;
+
+        Locator rows = page.locator("tr[data-test-id^=horse-row]");
+        int n = Math.min(rows.count(), RESULTAT_MAX_HORSES_PER_LAP);
+
+        for (int i = 0; i < n; i++) {
+            Locator row = rows.nth(i);
+            try {
+                // Försök klicka en expander-knapp om den finns, annars klicka hela raden
+                Locator expander = row.locator("button[aria-expanded], [aria-expanded]");
+                if (expander.count() > 0) {
+                    String ae = expander.first().getAttribute("aria-expanded");
+                    if (ae == null || !"true".equalsIgnoreCase(ae)) {
+                        robustClick(expander.first(), 3_000);
+                    }
+                } else {
+                    robustClick(row, 3_000);
+                }
+            } catch (PlaywrightException ignored) {
+            }
+        }
+
+        try { page.waitForTimeout(250); } catch (PlaywrightException ignored) {}
+    }
+
+
+    private Locator findMerInfoButtons(Page page) {
+        Locator byDataTestId = page.locator(
+                "button[data-test-id=\"previous-starts-toggle-show-more-button\"]:visible, " +
+                        "button[data-test-id*=\"previous-starts\"][data-test-id*=\"show-more\"]:visible"
+        );
+        if (byDataTestId.count() > 0) return byDataTestId;
+
+        Locator byText = page.locator(
+                "button:has-text(\"Mer info\"):visible, " +
+                        "button:has-text(\"Visa mer\"):visible, " +
+                        "button:has-text(\"Visa mer info\"):visible, " +
+                        "a:has-text(\"Mer info\"):visible, " +
+                        "[role=button]:has-text(\"Mer info\"):visible"
+        );
+        if (byText.count() > 0) return byText;
+
+        try {
+            Locator byRole = page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions()
+                    .setName(Pattern.compile("Mer\\s+info|Visa\\s+mer(\\s+info)?", Pattern.CASE_INSENSITIVE)));
+            if (byRole.count() > 0) return byRole;
+        } catch (PlaywrightException ignored) {
+        }
+        return page.locator("button:visible").filter(new Locator.FilterOptions().setHasText(
+                Pattern.compile("Mer\\s+info|Visa\\s+mer(\\s+info)?", Pattern.CASE_INSENSITIVE)));
+    }
+
+    private void scrapeResultatFromPopups(Page page, LocalDate meetingDate, String meetingTrackSlug, int meetingLap) {
+        clickExpandAllIfPresent(page);
+        tryExpandSomeRowsIfMerInfoHidden(page);
+
+
+        int textCount = page.locator("text=Mer info").count();
+        int dataTestIdCount = page.locator("[data-test-id*=\"previous-starts\"][data-test-id*=\"show-more\"]").count();
+
+        Locator merInfoButtons = findMerInfoButtons(page);
+        int total = merInfoButtons.count();
+
+        if (total <= 0) {
+            log.info("🟦 (resultat) Inga 'Mer info/Visa mer' hittades på {} {} lopp {} (selCount={}, textCount={}, dataTestIdCount={})",
+                    meetingDate, meetingTrackSlug, meetingLap, total, textCount, dataTestIdCount);
+            return;
+        }
+
+        int toClick = Math.min(total, RESULTAT_MAX_HORSES_PER_LAP);
+        log.info("🟩 (resultat) Hittade {} 'Mer info/Visa mer' på {} {} lopp {} (klickar {})",
+                total, meetingDate, meetingTrackSlug, meetingLap, toClick);
+
+        for (int i = 0; i < toClick; i++) {
+            Locator btn = merInfoButtons.nth(i);
+            String horseName = "";
+            Integer horseNr = null;
+            Locator scopeRow = null;
+
+            try {
+                Locator tr = btn.locator("xpath=ancestor::tr[1]");
+                scopeRow = tr;
+
+                Locator split = tr.locator("[startlist-export-id^='startlist-cell-horse-split-export']");
+                if (split.count() == 0) {
+                    Locator prev = tr.locator("xpath=preceding-sibling::tr[1]");
+                    if (prev.count() > 0) {
+                        split = prev.locator("[startlist-export-id^='startlist-cell-horse-split-export']");
+                    }
+                }
+
+                if (split.count() > 0) {
+                    String splitTxt = split.first().innerText().trim();
+                    String[] parts = splitTxt.split("\\s+", 2);
+
+
+                    if (parts.length > 0) {
+                        String nrStr = parts[0].replaceAll("\\D+", "");
+                        if (!nrStr.isBlank()) {
+                            try {
+                                horseNr = Integer.parseInt(nrStr);
+                            } catch (NumberFormatException ignored) {
+                            }
+                        }
+                    }
+                    horseName = (parts.length > 1) ? parts[1].trim() : splitTxt;
+                    horseName = normalizeHorseNameSimple(horseName);
+                }
+
+                robustClick(btn, 15_000);
+
+                Locator waitScope = btn.locator("xpath=ancestor::tr[1]");
+                Locator rowsInScope = waitScope.locator("tbody tr");
+                if (rowsInScope.count() == 0) {
+                    rowsInScope = waitScope.locator("[data-test-id=\"result-date\"]");
+                }
+                if (rowsInScope.count() > 0) {
+                    rowsInScope.first().waitFor(new Locator.WaitForOptions().setTimeout(30_000));
+                } else {
+                    page.waitForSelector(SEL_PREVSTARTS_ROWS_ANY,
+                            new Page.WaitForSelectorOptions().setTimeout(30_000).setState(WaitForSelectorState.ATTACHED));
+                }
+
+                String fragment = waitScope.evaluate("el => el.outerHTML").toString();
+
+                parseAndPersistResultatFromPreviousStarts(fragment, meetingDate, meetingTrackSlug, meetingLap, horseName, horseNr, i);
+
+                closePreviousStarts(page, btn, waitScope);
+
+            } catch (PlaywrightException e) {
+                log.warn("⚠️  (resultat) Kunde inte öppna/scrapa 'Mer info/Visa mer' på {} {} lopp {}: {}",
+                        meetingDate, meetingTrackSlug, meetingLap, e.getMessage());
+                try {
+                    if (scopeRow != null) closePreviousStarts(page, btn, scopeRow);
+                    else closePreviousStarts(page, btn, null);
+                } catch (PlaywrightException ignored) {
+                }
+            }
+        }
+
+    }
+
+    private void closePreviousStarts(Page page, Locator merInfoBtn, Locator scopeRow) {
+        try { page.keyboard().press("Escape"); } catch (PlaywrightException ignored) {}
+
+        try {
+            Locator close = page.locator(
+                    "button[aria-label='Stäng'], button[aria-label='Close'], button:has-text(\"Stäng\"), button:has-text(\"Close\")"
+            );
+            if (close.count() > 0) {
+                robustClick(close.first(), 5_000);
+            }
+        } catch (PlaywrightException ignored) {
+        }
+
+        try {
+            if (scopeRow != null) {
+                if (scopeRow.locator(SEL_PREVSTARTS_WRAPPER_ANY).count() > 0) {
+                    robustClick(merInfoBtn, 5_000);
+                }
+            } else {
+
+                if (page.locator(SEL_PREVSTARTS_WRAPPER_ANY).count() > 0) {
+                    robustClick(merInfoBtn, 5_000);
+                }
+            }
+        } catch (PlaywrightException ignored) {
+        }
+    }
+
+    private void parseAndPersistResultatFromPreviousStarts(
+                                                            String html,
+                                                            LocalDate meetingDate,
+                                                            String meetingTrackSlug,
+                                                            int meetingLap,
+                                                            String horseName,
+                                                            Integer horseNr,
+                                                            int horseIdx
+    ) {
         Document doc = Jsoup.parse(html);
 
         Element container = doc.selectFirst("#previous-starts-table-container");
@@ -1176,10 +1164,9 @@ public class AtgScraperService {
             return;
         }
 
-        //Changed! horseNr ignoreras här med flit. Previous-starts rader hör inte ihop med dagens startnummer.
-        String safeName = normalizeHorseNameSimple(horseName); //Changed!
+        String safeName = normalizeHorseNameSimple(horseName);
 
-        int kuskIdx = findHeaderIndex(container, Pattern.compile("\\bkusk\\b", Pattern.CASE_INSENSITIVE)); //Changed!
+        int kuskIdx = findHeaderIndex(container, Pattern.compile("\\bkusk\\b", Pattern.CASE_INSENSITIVE));
 
         List<ResultHorse> toSave = new ArrayList<>();
         int limit = Math.min(rows.size(), RESULTAT_MAX_ROWS_PER_HORSE);
@@ -1217,7 +1204,7 @@ public class AtgScraperService {
                             .datum(datum)
                             .bankod(tl.bankod())
                             .lopp(tl.lopp())
-                            .nr(0) //Changed! nya rader från popup-scrapern får alltid nr=0
+                            .nr(0)
                             .namn(safeName)
                             .build());
 
@@ -1225,10 +1212,9 @@ public class AtgScraperService {
                 rh.setNamn(safeName);
             }
 
-            //Changed! Defaulta endast när nr saknas (null). Rör aldrig ett befintligt nr.
-            if (rh.getNr() == null) { //Changed!
-                rh.setNr(0); //Changed!
-            } //Changed!
+            if (rh.getNr() == null) {
+                rh.setNr(0);
+            }
 
             if (distans != null) rh.setDistans(distans);
             if (spar != null) rh.setSpar(spar);
@@ -1257,10 +1243,10 @@ public class AtgScraperService {
         try {
             resultRepo.saveAll(toSave);
             log.info("💾 (resultat) Sparade/uppdaterade {} rader från 'Mer info' (nr=keep/default0) på {} {} lopp {}",
-                    toSave.size(), meetingDate, meetingTrackSlug, meetingLap); //Changed!
+                    toSave.size(), meetingDate, meetingTrackSlug, meetingLap);
         } catch (DataIntegrityViolationException dive) {
             log.warn("⚠️  (resultat) saveAll krockade, kör fallback rad-för-rad (nr=keep/default0) på {} {} lopp {}: {}",
-                    meetingDate, meetingTrackSlug, meetingLap, dive.getMostSpecificCause().getMessage()); //Changed!
+                    meetingDate, meetingTrackSlug, meetingLap, dive.getMostSpecificCause().getMessage());
 
             for (ResultHorse rh : toSave) {
                 try {
@@ -1284,358 +1270,334 @@ public class AtgScraperService {
 
                     if (rh.getKusk() != null && !rh.getKusk().isBlank()) existing.setKusk(rh.getKusk());
 
-                    //Changed! Defaulta endast när nr saknas (null). Rör aldrig ett befintligt nr.
-                    if (existing.getNr() == null) { //Changed!
-                        existing.setNr(0); //Changed!
-                    } //Changed!
+                    if (existing.getNr() == null) {
+                        existing.setNr(0);
+                    }
 
                     resultRepo.save(existing);
                 } catch (DataIntegrityViolationException ignored) {
                     log.warn("⚠️  (resultat) Kunde inte upserta datum={} bankod={} lopp={} nr=keep/default0",
-                            rh.getDatum(), rh.getBankod(), rh.getLopp()); //Changed!
+                            rh.getDatum(), rh.getBankod(), rh.getLopp());
                 }
             }
         }
-    } //Changed!
+    }
 
-    private static String extractUnderlagFromTds(Elements tds) { //Changed!
-        if (tds == null || tds.isEmpty()) return ""; //Changed!
+    private static String extractUnderlagFromTds(Elements tds) {
+        if (tds == null || tds.isEmpty()) return "";
 
-        String best = ""; //Changed!
-        Pattern paren = Pattern.compile("\\(([^)]{1,20})\\)"); //Changed!
+        String best = "";
+        Pattern paren = Pattern.compile("\\(([^)]{1,20})\\)");
 
-        for (Element td : tds) { //Changed!
-            String raw = normalizeCellText(td.text()); //Changed!
-            if (raw.isBlank()) continue; //Changed!
+        for (Element td : tds) {
+            String raw = normalizeCellText(td.text());
+            if (raw.isBlank()) continue;
 
-            //Changed! Underlag kommer som något i parentes, t.ex. (k m n)
-            Matcher m = paren.matcher(raw); //Changed!
-            while (m.find()) { //Changed!
-                String cleaned = sanitizeUnderlag(m.group(1)); //Changed!
-                if (cleaned.isBlank()) continue; //Changed!
+            Matcher m = paren.matcher(raw);
+            while (m.find()) {
+                String cleaned = sanitizeUnderlag(m.group(1));
+                if (cleaned.isBlank()) continue;
 
-                //Changed! Välj "bästa": längre vinner (kmn > kn > k), vid lika längd tar vi senaste
-                if (cleaned.length() > best.length() || cleaned.length() == best.length()) { //Changed!
-                    best = cleaned; //Changed!
-                } //Changed!
-            } //Changed!
-        } //Changed!
+                if (cleaned.length() > best.length() || cleaned.length() == best.length()) {
+                    best = cleaned;
+                }
+            }
+        }
 
-        return best; //Changed!
-    } //Changed!
+        return best;
+    }
 
-    private static String sanitizeUnderlag(String raw) { //Changed!
-        if (raw == null) return ""; //Changed!
-        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT); //Changed!
-        if (t.isBlank()) return ""; //Changed!
+    private static String sanitizeUnderlag(String raw) {
+        if (raw == null) return "";
+        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
+        if (t.isBlank()) return "";
 
-        //Changed! Behåll bara bokstäver för att kunna tolka "k m n", "k/n", "k,n" osv
-        String letters = t.replaceAll("[^a-z]", ""); //Changed!
+        String letters = t.replaceAll("[^a-z]", "");
 
-        //Changed! Normalisera till max 3 tecken och stabil ordning: k, m, n
-        boolean hasK = letters.indexOf('k') >= 0; //Changed!
-        boolean hasM = letters.indexOf('m') >= 0; //Changed!
-        boolean hasN = letters.indexOf('n') >= 0; //Changed!
+        boolean hasK = letters.indexOf('k') >= 0;
+        boolean hasM = letters.indexOf('m') >= 0;
+        boolean hasN = letters.indexOf('n') >= 0;
 
-        StringBuilder out = new StringBuilder(3); //Changed!
-        if (hasK) out.append('k'); //Changed!
-        if (hasM) out.append('m'); //Changed!
-        if (hasN) out.append('n'); //Changed!
+        StringBuilder out = new StringBuilder(3);
+        if (hasK) out.append('k');
+        if (hasM) out.append('m');
+        if (hasN) out.append('n');
 
-        return out.toString(); //Changed!
-    } //Changed!
+        return out.toString();
+    }
 
 
-    private static String trimToMax(String s, int max) { //Changed!
-        if (s == null) return ""; //Changed!
-        if (s.length() <= max) return s; //Changed!
-        return s.substring(0, max); //Changed!
-    } //Changed!
+    private static String trimToMax(String s, int max) {
+        if (s == null) return "";
+        if (s.length() <= max) return s;
+        return s.substring(0, max);
+    }
 
 
 
     private long stableResultId(LocalDate meetingDate, String meetingTrackSlug, int meetingLap, String horseName, int horseIdx, int rowIdx,
-                                Integer datum, String bankod, Integer lopp) { //Changed!
+                                Integer datum, String bankod, Integer lopp) {
         String key = meetingDate + "|" + meetingTrackSlug + "|" + meetingLap + "|" +
                 (horseName == null ? "" : horseName) + "|" + horseIdx + "|" + rowIdx + "|" +
-                datum + "|" + bankod + "|" + lopp; //Changed!
-        UUID uuid = UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)); //Changed!
-        return uuid.getMostSignificantBits() & Long.MAX_VALUE; //Changed!
-    } //Changed!
+                datum + "|" + bankod + "|" + lopp;
+        UUID uuid = UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8));
+        return uuid.getMostSignificantBits() & Long.MAX_VALUE;
+    }
 
-    private Integer extractDatumFromResultRow(Element tr) { //Changed!
-        //Changed! funkar för både <a> och <div>
-        Element dateEl = tr.selectFirst("[data-test-id=result-date]"); //Changed!
-        if (dateEl != null) { //Changed!
-            //Changed! 1) Försök href om den finns (bara <a> har href)
-            String href = dateEl.hasAttr("href") ? dateEl.attr("href") : ""; //Changed!
-            if (href != null && !href.isBlank()) { //Changed!
-                Matcher mh = RESULT_HREF_PATTERN.matcher(href); //Changed!
-                if (mh.find()) { //Changed!
-                    try { //Changed!
-                        LocalDate d = LocalDate.parse(mh.group(1), URL_DATE_FORMAT); //Changed!
-                        return Integer.parseInt(d.format(DateTimeFormatter.BASIC_ISO_DATE)); //Changed! yyyyMMdd
-                    } catch (Exception ignored) { //Changed!
-                    } //Changed!
-                } //Changed!
-            } //Changed!
+    private Integer extractDatumFromResultRow(Element tr) {
+        Element dateEl = tr.selectFirst("[data-test-id=result-date]");
+        if (dateEl != null) {
+            String href = dateEl.hasAttr("href") ? dateEl.attr("href") : "";
+            if (href != null && !href.isBlank()) {
+                Matcher mh = RESULT_HREF_PATTERN.matcher(href);
+                if (mh.find()) {
+                    try {
+                        LocalDate d = LocalDate.parse(mh.group(1), URL_DATE_FORMAT);
+                        return Integer.parseInt(d.format(DateTimeFormatter.BASIC_ISO_DATE));
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
 
-            //Changed! 2) Fallback: läs texten (span eller direkt text)
-            String txt = normalizeCellText(dateEl.text()); //Changed!
-            if (!txt.isBlank()) { //Changed!
-                //Changed! stöd även yyyy-MM-dd om det någon gång dyker upp
-                if (ISO_DATE.matcher(txt).matches()) { //Changed!
-                    try { //Changed!
-                        LocalDate d = LocalDate.parse(txt, URL_DATE_FORMAT); //Changed!
-                        return Integer.parseInt(d.format(DateTimeFormatter.BASIC_ISO_DATE)); //Changed!
-                    } catch (Exception ignored) { //Changed!
-                    } //Changed!
-                } //Changed!
+            String txt = normalizeCellText(dateEl.text());
+            if (!txt.isBlank()) {
+                if (ISO_DATE.matcher(txt).matches()) {
+                    try {
+                        LocalDate d = LocalDate.parse(txt, URL_DATE_FORMAT);
+                        return Integer.parseInt(d.format(DateTimeFormatter.BASIC_ISO_DATE));
+                    } catch (Exception ignored) {
+                    }
+                }
 
-                Matcher m = DIGITS_ONLY.matcher(txt); //Changed!
-                if (m.find()) { //Changed!
-                    String digits = m.group(1).replaceAll("\\D+", ""); //Changed!
-                    try { //Changed!
-                        if (digits.length() == 6) return 20000000 + Integer.parseInt(digits); //Changed! yyMMdd -> 20yyMMdd
-                        if (digits.length() == 8) return Integer.parseInt(digits); //Changed! yyyyMMdd
-                    } catch (Exception ignored) { //Changed!
-                    } //Changed!
-                } //Changed!
-            } //Changed!
-        } //Changed!
+                Matcher m = DIGITS_ONLY.matcher(txt);
+                if (m.find()) {
+                    String digits = m.group(1).replaceAll("\\D+", "");
+                    try {
+                        if (digits.length() == 6) return 20000000 + Integer.parseInt(digits);
+                        if (digits.length() == 8) return Integer.parseInt(digits);
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
 
-        return null; //Changed!
-    } //Changed!
+        return null;
+    }
 
 
 
 
-    private TrackLap parseTrackLapText(String raw) { //Changed!
-        String t = normalizeCellText(raw); //Changed!
-        if (t.isBlank()) return null; //Changed!
+    private TrackLap parseTrackLapText(String raw) {
+        String t = normalizeCellText(raw);
+        if (t.isBlank()) return null;
 
-        //Changed! Stoppa datum som annars matchar TRACK_LAP_PATTERN (t.ex. 2025-10-06 -> "2025-10" + "06")
-        if (ISO_DATE.matcher(t).matches()) return null; //Changed!
-        if (t.matches("^\\d{6}$") || t.matches("^\\d{8}$")) return null; //Changed!
+        if (ISO_DATE.matcher(t).matches()) return null;
+        if (t.matches("^\\d{6}$") || t.matches("^\\d{8}$")) return null;
 
-        Matcher m = TRACK_LAP_PATTERN.matcher(t); //Changed!
-        if (!m.matches()) return null; //Changed!
+        Matcher m = TRACK_LAP_PATTERN.matcher(t);
+        if (!m.matches()) return null;
 
-        String trackName = m.group(1).trim(); //Changed!
-        if (!HAS_LETTER.matcher(trackName).matches()) return null; //Changed! // stoppar "2025-10"
+        String trackName = m.group(1).trim();
+        if (!HAS_LETTER.matcher(trackName).matches()) return null;
 
-        int lopp; //Changed!
-        try { //Changed!
-            lopp = Integer.parseInt(m.group(2)); //Changed!
-        } catch (NumberFormatException e) { //Changed!
-            return null; //Changed!
-        } //Changed!
+        int lopp;
+        try {
+            lopp = Integer.parseInt(m.group(2));
+        } catch (NumberFormatException e) {
+            return null;
+        }
 
-        return new TrackLap(toResultBankod(trackName), lopp); //Changed!
-    } //Changed!
+        return new TrackLap(toResultBankod(trackName), lopp);
+    }
 
-    private TrackLap extractTrackLapFromResultRow(Element tr) { //Changed!
-        //Changed! funkar för både <a> och <div>
-        Element dateEl = tr.selectFirst("[data-test-id=result-date]"); //Changed!
-        if (dateEl != null) { //Changed!
-            String href = dateEl.hasAttr("href") ? dateEl.attr("href") : ""; //Changed!
-            if (href != null && !href.isBlank()) { //Changed!
-                Matcher mh = RESULT_HREF_PATTERN.matcher(href); //Changed!
-                if (mh.find()) { //Changed!
-                    String trackSlug = mh.group(2).trim(); //Changed!
-                    try { //Changed!
-                        int lopp = Integer.parseInt(mh.group(3)); //Changed!
-                        String bankod = toResultBankod(trackSlug); //Changed!
-                        return new TrackLap(bankod, lopp); //Changed!
-                    } catch (NumberFormatException ignored) { //Changed!
-                    } //Changed!
-                } //Changed!
-            } //Changed!
-        } //Changed!
+    private TrackLap extractTrackLapFromResultRow(Element tr) {
 
-        //Changed! Fallback: leta i alla td men ignorera datum och kräver bokstav i "bana"-delen
-        for (Element td : tr.select("td")) { //Changed!
-            TrackLap tl = parseTrackLapText(td.text()); //Changed!
-            if (tl != null) return tl; //Changed!
-        } //Changed!
+        Element dateEl = tr.selectFirst("[data-test-id=result-date]");
+        if (dateEl != null) {
+            String href = dateEl.hasAttr("href") ? dateEl.attr("href") : "";
+            if (href != null && !href.isBlank()) {
+                Matcher mh = RESULT_HREF_PATTERN.matcher(href);
+                if (mh.find()) {
+                    String trackSlug = mh.group(2).trim();
+                    try {
+                        int lopp = Integer.parseInt(mh.group(3));
+                        String bankod = toResultBankod(trackSlug);
+                        return new TrackLap(bankod, lopp);
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+        }
 
-        return null; //Changed!
-    } //Changed!
+        for (Element td : tr.select("td")) {
+            TrackLap tl = parseTrackLapText(td.text());
+            if (tl != null) return tl;
+        }
+
+        return null;
+    }
 
 
 
-    private record TrackLap(String bankod, Integer lopp) {} //Changed!
+    private record TrackLap(String bankod, Integer lopp) {}
 
-    private static int[] findDistSparFromTds(Elements tds) { //Changed!
-        // return [distans, spar, tdIndex] där -1 betyder "hittades inte" //Changed!
-        int[] out = new int[]{-1, -1, -1}; //Changed!
-        if (tds == null || tds.isEmpty()) return out; //Changed!
+    private static int[] findDistSparFromTds(Elements tds) {
+        int[] out = new int[]{-1, -1, -1};
+        if (tds == null || tds.isEmpty()) return out;
 
-        //Changed! Tillåt även "1700:" (utan spår) => default spår=1
-        Pattern p = Pattern.compile("^(\\d{3,4})\\s*:\\s*(\\d{1,2})?\\s*$"); //Changed!
-        for (int i = 0; i < tds.size(); i++) { //Changed!
-            String txt = normalizeCellText(tds.get(i).text()); //Changed!
-            Matcher m = p.matcher(txt); //Changed!
-            if (m.matches()) { //Changed!
-                try { //Changed!
-                    out[0] = Integer.parseInt(m.group(1)); //Changed!
-                    String g2 = m.group(2); //Changed!
-                    out[1] = (g2 == null || g2.isBlank()) ? 1 : Integer.parseInt(g2); //Changed!
-                    out[2] = i; //Changed!
-                    return out; //Changed!
-                } catch (NumberFormatException ignored) { //Changed!
-                } //Changed!
-            } //Changed!
-        } //Changed!
+        Pattern p = Pattern.compile("^(\\d{3,4})\\s*:\\s*(\\d{1,2})?\\s*$");
+        for (int i = 0; i < tds.size(); i++) {
+            String txt = normalizeCellText(tds.get(i).text());
+            Matcher m = p.matcher(txt);
+            if (m.matches()) {
+                try {
+                    out[0] = Integer.parseInt(m.group(1));
+                    String g2 = m.group(2);
+                    out[1] = (g2 == null || g2.isBlank()) ? 1 : Integer.parseInt(g2);
+                    out[2] = i;
+                    return out;
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
 
-        //Changed! Fallback: "1700" (utan ":spår") => spår=1 om nästa cell ser ut som tid (t.ex. "19,0")
-        Pattern distOnly = Pattern.compile("^(\\d{3,4})\\s*(?:m)?\\s*$", Pattern.CASE_INSENSITIVE); //Changed!
-        for (int i = 0; i < tds.size(); i++) { //Changed!
-            String txt = normalizeCellText(tds.get(i).text()); //Changed!
-            Matcher m = distOnly.matcher(txt); //Changed!
-            if (!m.matches()) continue; //Changed!
+        Pattern distOnly = Pattern.compile("^(\\d{3,4})\\s*(?:m)?\\s*$", Pattern.CASE_INSENSITIVE);
+        for (int i = 0; i < tds.size(); i++) {
+            String txt = normalizeCellText(tds.get(i).text());
+            Matcher m = distOnly.matcher(txt);
+            if (!m.matches()) continue;
 
-            int dist; //Changed!
-            try { //Changed!
-                dist = Integer.parseInt(m.group(1)); //Changed!
-            } catch (NumberFormatException e) { //Changed!
-                continue; //Changed!
-            } //Changed!
+            int dist;
+            try {
+                dist = Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) {
+                continue;
+            }
 
-            if (dist < 600 || dist > 4000) continue; //Changed!
+            if (dist < 600 || dist > 4000) continue;
 
-            String next = (i + 1 < tds.size()) ? normalizeCellText(tds.get(i + 1).text()) : ""; //Changed!
-            boolean nextLooksLikeTime = false; //Changed!
-            if (!next.isBlank()) { //Changed!
-                TidInfo ti = parseTidCell(next, true); //Changed!
+            String next = (i + 1 < tds.size()) ? normalizeCellText(tds.get(i + 1).text()) : "";
+            boolean nextLooksLikeTime = false;
+            if (!next.isBlank()) {
+                TidInfo ti = parseTidCell(next, true);
                 nextLooksLikeTime = (ti.tid() != null || ti.startmetod() != null || ti.galopp() != null
-                        || TIME_VALUE.matcher(next).find()); //Changed!
-            } //Changed!
-            if (!nextLooksLikeTime) continue; //Changed!
+                        || TIME_VALUE.matcher(next).find());
+            }
+            if (!nextLooksLikeTime) continue;
 
-            out[0] = dist; //Changed!
-            out[1] = 1; //Changed!
-            out[2] = i; //Changed!
-            return out; //Changed!
-        } //Changed!
+            out[0] = dist;
+            out[1] = 1;
+            out[2] = i;
+            return out;
+        }
 
-        return out; //Changed!
-    } //Changed!
-
-
-    private static Integer mapPlaceringValue(String raw) { //Changed!
-        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT); //Changed!
-        if (t.isBlank()) return null; //Changed!
-
-        String token = t.split("\\s+")[0].replaceAll("[^0-9\\p{L}]", ""); //Changed!
-        if (token.isBlank()) return null; //Changed!
-
-        Matcher mr = PLACERING_WITH_R.matcher(token); //Changed!
-        if (mr.matches()) token = mr.group(1); //Changed!
-
-        if (token.equals("k") || token.equals("p") || token.equals("str") || token.equals("d")) return 99; //Changed!
-
-        if (!token.matches("^\\d+$")) return null; //Changed!
-        if (token.length() > 2) return null; //Changed!
-
-        try { //Changed!
-            int v = Integer.parseInt(token); //Changed!
-            if (v == 0 || v == 9) return 15; //Changed!
-            return v; //Changed!
-        } catch (NumberFormatException e) { //Changed!
-            return null; //Changed!
-        } //Changed!
-    } //Changed!
+        return out;
+    }
 
 
-    private static Integer extractPlaceringFromTds(Elements tds, int distIdx) { //Changed!
-        if (tds == null || tds.isEmpty()) return null; //Changed!
+    private static Integer mapPlaceringValue(String raw) {
+        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
+        if (t.isBlank()) return null;
 
-        //Changed! 1) fetstilad cell först (det är placering i din vy)
-        for (int i = 0; i < tds.size(); i++) { //Changed!
-            Element td = tds.get(i); //Changed!
-            if (td.selectFirst("span[style*=font-weight]") != null) { //Changed!
-                Integer v = mapPlaceringValue(td.text()); //Changed!
-                if (v != null) return v; //Changed!
-            } //Changed!
-        } //Changed!
+        String token = t.split("\\s+")[0].replaceAll("[^0-9\\p{L}]", "");
+        if (token.isBlank()) return null;
 
-        //Changed! 2) fallback: leta före distans:spår-kolumnen
-        int max = (distIdx >= 0 ? distIdx : tds.size()); //Changed!
-        for (int i = 0; i < max; i++) { //Changed!
-            Integer v = mapPlaceringValue(tds.get(i).text()); //Changed!
-            if (v != null) return v; //Changed!
-        } //Changed!
+        Matcher mr = PLACERING_WITH_R.matcher(token);
+        if (mr.matches()) token = mr.group(1);
 
-        return null; //Changed!
-    } //Changed!
+        if (token.equals("k") || token.equals("p") || token.equals("str") || token.equals("d")) return 99;
+
+        if (!token.matches("^\\d+$")) return null;
+        if (token.length() > 2) return null;
+
+        try {
+            int v = Integer.parseInt(token);
+            if (v == 0 || v == 9) return 15;
+            return v;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
 
-    private record TidInfo(Double tid, String startmetod, String galopp) {} //Changed!
+    private static Integer extractPlaceringFromTds(Elements tds, int distIdx) {
+        if (tds == null || tds.isEmpty()) return null;
 
-    private static TidInfo extractTidFromTds(Elements tds, int distIdx) { //Changed!
+        for (int i = 0; i < tds.size(); i++) {
+            Element td = tds.get(i);
+            if (td.selectFirst("span[style*=font-weight]") != null) {
+                Integer v = mapPlaceringValue(td.text());
+                if (v != null) return v;
+            }
+        }
+
+        int max = (distIdx >= 0 ? distIdx : tds.size());
+        for (int i = 0; i < max; i++) {
+            Integer v = mapPlaceringValue(tds.get(i).text());
+            if (v != null) return v;
+        }
+
+        return null;
+    }
+
+
+    private record TidInfo(Double tid, String startmetod, String galopp) {}
+
+    private static TidInfo extractTidFromTds(Elements tds, int distIdx) {
         if (tds == null || tds.isEmpty()) return new TidInfo(null, null, null);
 
-        // Oftast ligger tid direkt efter "distans : spår"
         if (distIdx >= 0 && distIdx + 1 < tds.size()) {
-            TidInfo info = parseTidCell(tds.get(distIdx + 1).text(), true); //Changed!
+            TidInfo info = parseTidCell(tds.get(distIdx + 1).text(), true);
             if (info.tid != null || info.startmetod != null || info.galopp != null) return info;
         }
 
-        // Fallback: leta efter första rimliga tid-cellen
         for (int i = 0; i < tds.size(); i++) {
             String raw = normalizeCellText(tds.get(i).text());
-            if (raw.contains(":")) continue; // (hoppa distans:spår)
+            if (raw.contains(":")) continue;
 
-            TidInfo info = parseTidCell(raw); //Changed!
+            TidInfo info = parseTidCell(raw);
             if (info.tid == null && info.startmetod == null && info.galopp == null) continue;
 
-            // Tillåt alltid 99 (dist/kub/u/d/vmk)
             if (info.tid != null && Double.compare(info.tid, 99.0) == 0) return info;
 
-            // Undvik odds som ofta har två decimaler (t.ex. 28,81)
             if (info.tid != null && info.startmetod == null && info.galopp == null && raw.matches(".*\\d+[\\.,]\\d{2}.*")) {
                 continue;
             }
 
-            // Rimlig tid-range
             if (info.tid != null && info.tid >= 8.0 && info.tid <= 60.0) return info;
 
-            // Om vi åtminstone hittade a/g, returnera det
             if (info.startmetod != null || info.galopp != null) return info;
         }
 
         return new TidInfo(null, null, null);
-    } //Changed!
+    }
 
-    private static Integer parseFirstInt(String s) { //Changed!
-        String txt = normalizeCellText(s); //Changed!
-        Matcher m = Pattern.compile("(\\d{1,4})").matcher(txt); //Changed!
-        if (!m.find()) return null; //Changed!
-        try { //Changed!
-            return Integer.parseInt(m.group(1)); //Changed!
-        } catch (NumberFormatException e) { //Changed!
-            return null; //Changed!
-        } //Changed!
-    } //Changed!
+    private static Integer parseFirstInt(String s) {
+        String txt = normalizeCellText(s);
+        Matcher m = Pattern.compile("(\\d{1,4})").matcher(txt);
+        if (!m.find()) return null;
+        try {
+            return Integer.parseInt(m.group(1));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
-    private static TidInfo parseTidCell(String raw) { //Changed!
-        return parseTidCell(raw, false); //Changed!
-    } //Changed!
+    private static TidInfo parseTidCell(String raw) {
+        return parseTidCell(raw, false);
+    }
 
-    private static TidInfo parseTidCell(String raw, boolean integerNoCommaMeans99) { //Changed!
+    private static TidInfo parseTidCell(String raw, boolean integerNoCommaMeans99) {
         String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
         if (t.isBlank()) return new TidInfo(null, null, null);
 
         t = t.replaceAll("[()\\s]", "");
 
-        // Plocka ut bokstavsdelen (suffix/ord)
         String letters = t.replaceAll("[0-9\\.,]", "");
 
         String startmetod = letters.contains("a") ? "a" : null;
         String galopp = letters.contains("g") ? "g" : null;
 
-        // Specialfall som alltid ska ge tid = 99
         boolean force99 = letters.contains("dist")
                 || letters.contains("kub")
                 || letters.contains("vmk")
@@ -1653,182 +1615,176 @@ public class AtgScraperService {
 
         if (force99) return new TidInfo(99.0, startmetod, galopp);
 
-        //Changed! Om det inte finns komma/punkt i tid-kolumnen (t.ex. "14", "10", "10ag") => tid=99
-        if (time == null) { //Changed!
-            boolean hasSep = t.contains(",") || t.contains("."); //Changed!
-            String digits = t.replaceAll("\\D+", ""); //Changed!
-            if (!hasSep && !digits.isBlank() && digits.length() <= 2) { //Changed!
-                if (integerNoCommaMeans99 || !letters.isBlank()) { //Changed!
-                    return new TidInfo(99.0, startmetod, galopp); //Changed!
-                } //Changed!
-            } //Changed!
-        } //Changed!
+        if (time == null) {
+            boolean hasSep = t.contains(",") || t.contains(".");
+            String digits = t.replaceAll("\\D+", "");
+            if (!hasSep && !digits.isBlank() && digits.length() <= 2) {
+                if (integerNoCommaMeans99 || !letters.isBlank()) {
+                    return new TidInfo(99.0, startmetod, galopp);
+                }
+            }
+        }
 
         return new TidInfo(time, startmetod, galopp);
-    } //Changed!
+    }
 
-    private static String normalizeCellText(String s) { //Changed!
-        if (s == null) return ""; //Changed!
-        return s.replace('\u00A0', ' ').trim(); //Changed!
-    } //Changed!
+    private static String normalizeCellText(String s) {
+        if (s == null) return "";
+        return s.replace('\u00A0', ' ').trim();
+    }
 
-    private static String normalizeHorseNameSimple(String raw) { //Changed!
-        String s = normalizeCellText(raw); //Changed!
-        if (s.isBlank()) return ""; //Changed!
-        s = s.replace("'", "").replace("’", ""); //Changed!
-        s = s.toUpperCase(Locale.ROOT); //Changed!
-        return trimToMax(s, 50); //Changed!
-    } //Changed!
+    private static String normalizeHorseNameSimple(String raw) {
+        String s = normalizeCellText(raw);
+        if (s.isBlank()) return "";
+        s = s.replace("'", "").replace("’", "");
+        s = s.toUpperCase(Locale.ROOT);
+        return trimToMax(s, 50);
+    }
 
-    private static final int RESULT_BANKOD_MAX_LEN = 20; //Changed!
+    private static final int RESULT_BANKOD_MAX_LEN = 20;
 
-    private static String toResultBankod(String trackLike) { //Changed!
-        if (trackLike == null || trackLike.isBlank()) return DEFAULT_BANKOD; //Changed!
+    private static String toResultBankod(String trackLike) {
+        if (trackLike == null || trackLike.isBlank()) return DEFAULT_BANKOD;
 
-        String key = trackKey(trackLike); //Changed!
-        String code = FULLNAME_TO_BANKODE.get(key); //Changed!
-        if (code != null && !code.isBlank()) return code; //Changed!
+        String key = trackKey(trackLike);
+        String code = FULLNAME_TO_BANKODE.get(key);
+        if (code != null && !code.isBlank()) return code;
 
-        String fallback = trimToMax(key, RESULT_BANKOD_MAX_LEN); //Changed!
-        if (fallback.isBlank()) return DEFAULT_BANKOD; //Changed!
+        String fallback = trimToMax(key, RESULT_BANKOD_MAX_LEN);
+        if (fallback.isBlank()) return DEFAULT_BANKOD;
 
-        log.warn("⚠️  Okänd bana '{}' (key='{}'), använder '{}' som bankod i RESULT-tabellen", //Changed!
-                trackLike, key, fallback); //Changed!
-        return fallback; //Changed!
-    } //Changed!
+        log.warn("⚠️  Okänd bana '{}' (key='{}'), använder '{}' som bankod i RESULT-tabellen",
+                trackLike, key, fallback);
+        return fallback;
+    }
 
-    private static Integer extractPrisFromTds(Elements tds, int distIdx) { //Changed!
-        if (tds == null || tds.isEmpty()) return 0; //Changed!
+    private static Integer extractPrisFromTds(Elements tds, int distIdx) {
+        if (tds == null || tds.isEmpty()) return 0;
 
-        int start = (distIdx >= 0 ? Math.min(distIdx + 2, tds.size()) : 0); //Changed!
-        Integer last = null; //Changed!
+        int start = (distIdx >= 0 ? Math.min(distIdx + 2, tds.size()) : 0);
+        Integer last = null;
 
-        for (int i = start; i < tds.size(); i++) { //Changed!
-            String raw = normalizeCellText(tds.get(i).text()); //Changed!
-            Integer v = parsePrisToInt(raw); //Changed!
-            if (v != null) last = v; //Changed!
-        } //Changed!
+        for (int i = start; i < tds.size(); i++) {
+            String raw = normalizeCellText(tds.get(i).text());
+            Integer v = parsePrisToInt(raw);
+            if (v != null) last = v;
+        }
 
-        return last != null ? last : 0; //Changed!
-    } //Changed!
+        return last != null ? last : 0;
+    }
 
-    private static Integer parsePrisToInt(String raw) { //Changed!
-        String t = normalizeCellText(raw); //Changed!
-        if (t.isBlank()) return null; //Changed!
+    private static Integer parsePrisToInt(String raw) {
+        String t = normalizeCellText(raw);
+        if (t.isBlank()) return null;
 
-        t = t.replaceAll("[()]", "").trim(); //Changed!
+        t = t.replaceAll("[()]", "").trim();
 
-        Matcher ma = PRIS_APOSTROPHE.matcher(t); //Changed!
-        if (ma.matches()) { //Changed!
-            try { return Integer.parseInt(ma.group(1)) * 1000; } catch (NumberFormatException e) { return null; } //Changed!
-        } //Changed!
+        Matcher ma = PRIS_APOSTROPHE.matcher(t);
+        if (ma.matches()) {
+            try { return Integer.parseInt(ma.group(1)) * 1000; } catch (NumberFormatException e) { return null; }
+        }
 
-        Matcher mk = PRIS_K.matcher(t); //Changed!
-        if (mk.matches()) { //Changed!
-            try { return Integer.parseInt(mk.group(1)) * 1000; } catch (NumberFormatException e) { return null; } //Changed!
-        } //Changed!
+        Matcher mk = PRIS_K.matcher(t);
+        if (mk.matches()) {
+            try { return Integer.parseInt(mk.group(1)) * 1000; } catch (NumberFormatException e) { return null; }
+        }
 
-        // Om det finns komma/dot som decimal så är det nästan aldrig "pris" i din vy //Changed!
-        if (t.contains(",") && !t.contains(" ")) return null; //Changed!
+        if (t.contains(",") && !t.contains(" ")) return null;
 
-        Matcher mt = PRIS_THOUSANDS.matcher(t); //Changed!
-        if (mt.matches()) { //Changed!
-            String digits = mt.group(1).replaceAll("[\\s\\u00A0\\.]", ""); //Changed!
-            try { return Integer.parseInt(digits); } catch (NumberFormatException e) { return null; } //Changed!
-        } //Changed!
+        Matcher mt = PRIS_THOUSANDS.matcher(t);
+        if (mt.matches()) {
+            String digits = mt.group(1).replaceAll("[\\s\\u00A0\\.]", "");
+            try { return Integer.parseInt(digits); } catch (NumberFormatException e) { return null; }
+        }
 
-        return null; //Changed!
-    } //Changed!
+        return null;
+    }
 
-    private static Integer extractOddsFromTds(Elements tds, int distIdx) { //Changed!
-        if (tds == null || tds.isEmpty()) return 999; //Changed!
+    private static Integer extractOddsFromTds(Elements tds, int distIdx) {
+        if (tds == null || tds.isEmpty()) return 999;
 
-        int timeIdx = (distIdx >= 0 ? distIdx + 1 : -1); //Changed!
-        int start = (timeIdx >= 0 ? Math.min(timeIdx + 1, tds.size()) : 0); //Changed!
+        int timeIdx = (distIdx >= 0 ? distIdx + 1 : -1);
+        int start = (timeIdx >= 0 ? Math.min(timeIdx + 1, tds.size()) : 0);
 
-        Integer last = null; //Changed!
-        for (int i = start; i < tds.size(); i++) { //Changed!
-            String raw = normalizeCellText(tds.get(i).text()); //Changed!
-            if (raw.isBlank()) continue; //Changed!
+        Integer last = null;
+        for (int i = start; i < tds.size(); i++) {
+            String raw = normalizeCellText(tds.get(i).text());
+            if (raw.isBlank()) continue;
 
-            // Hoppa sådant som ser ut som pris (t.ex. 30') //Changed!
-            if (raw.contains("'") || raw.contains("’")) continue; //Changed!
+            if (raw.contains("'") || raw.contains("’")) continue;
 
-            Integer v = parseOddsToInt(raw); //Changed!
-            if (v != null) last = v; //Changed!
-        } //Changed!
+            Integer v = parseOddsToInt(raw);
+            if (v != null) last = v;
+        }
 
-        return last != null ? last : 999; //Changed!
-    } //Changed!
+        return last != null ? last : 999;
+    }
 
-    private static Integer parseOddsToInt(String raw) { //Changed!
-        String t = normalizeCellText(raw).replaceAll("[()]", "").trim(); //Changed!
-        if (t.isBlank()) return null; //Changed!
+    private static Integer parseOddsToInt(String raw) {
+        String t = normalizeCellText(raw).replaceAll("[()]", "").trim();
+        if (t.isBlank()) return null;
 
-        if (t.codePoints().anyMatch(Character::isLetter)) return null; //Changed!
+        if (t.codePoints().anyMatch(Character::isLetter)) return null;
 
-        Matcher m = ODDS_NUMBER.matcher(t); //Changed!
-        if (!m.matches()) return null; //Changed!
+        Matcher m = ODDS_NUMBER.matcher(t);
+        if (!m.matches()) return null;
 
-        String a = m.group(1); //Changed!
-        String b = m.group(2); //Changed!
+        String a = m.group(1);
+        String b = m.group(2);
 
-        try { //Changed!
-            BigDecimal val = new BigDecimal(a + "." + (b == null ? "0" : b)); //Changed!
-            BigDecimal scaled = val.multiply(BigDecimal.TEN); //Changed!  (x10)
-            int rounded = scaled.setScale(0, RoundingMode.HALF_UP).intValue(); //Changed!
+        try {
+            BigDecimal val = new BigDecimal(a + "." + (b == null ? "0" : b));
+            BigDecimal scaled = val.multiply(BigDecimal.TEN);
+            int rounded = scaled.setScale(0, RoundingMode.HALF_UP).intValue();
 
-            if (rounded < 0 || rounded > 9999) return null; //Changed! (was 999)
-            return rounded; //Changed!
-        } catch (NumberFormatException e) { //Changed!
-            return null; //Changed!
-        } //Changed!
-    } //Changed!
+            if (rounded < 0 || rounded > 9999) return null;
+            return rounded;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
-    private static int findHeaderIndex(Element container, Pattern headerRx) { //Changed!
-        if (container == null) return -1; //Changed!
-        Element head = container.selectFirst("thead"); //Changed!
-        if (head == null) return -1; //Changed!
+    private static int findHeaderIndex(Element container, Pattern headerRx) {
+        if (container == null) return -1;
+        Element head = container.selectFirst("thead");
+        if (head == null) return -1;
 
-        Elements hs = head.select("th, td"); //Changed!
-        for (int i = 0; i < hs.size(); i++) { //Changed!
-            String txt = normalizeCellText(hs.get(i).text()); //Changed!
-            if (headerRx.matcher(txt).find()) return i; //Changed!
-        } //Changed!
-        return -1; //Changed!
-    } //Changed!
+        Elements hs = head.select("th, td");
+        for (int i = 0; i < hs.size(); i++) {
+            String txt = normalizeCellText(hs.get(i).text());
+            if (headerRx.matcher(txt).find()) return i;
+        }
+        return -1;
+    }
 
-    private static String textAt(Elements tds, int idx) { //Changed!
-        if (tds == null || idx < 0 || idx >= tds.size()) return ""; //Changed!
-        return normalizeCellText(tds.get(idx).text()); //Changed!
-    } //Changed!
+    private static String textAt(Elements tds, int idx) {
+        if (tds == null || idx < 0 || idx >= tds.size()) return "";
+        return normalizeCellText(tds.get(idx).text());
+    }
 
-    private ResultHorse buildOrUpdateResultOddsForFuture( //Changed!
-                                                         LocalDate date, String bankod, int lap, String horseName, String vOdds //Changed!
-    ) { //Changed!
-        Integer parsedOdds = parseOddsToInt(vOdds); //Changed!
-        if (parsedOdds == null) return null; //Changed!
+    private ResultHorse buildOrUpdateResultOddsForFuture(
+                                                         LocalDate date, String bankod, int lap, String horseName, String vOdds
+    ) {
+        Integer parsedOdds = parseOddsToInt(vOdds);
+        if (parsedOdds == null) return null;
 
-        int datum = toYyyymmdd(date); //Changed!
-        String safeName = normalizeHorseNameSimple(horseName); //Changed!
-        if (safeName.isBlank()) return null; //Changed!
+        int datum = toYyyymmdd(date);
+        String safeName = normalizeHorseNameSimple(horseName);
+        if (safeName.isBlank()) return null;
 
-        Optional<ResultHorse> existingOpt = resultRepo //Changed!
-                .findByDatumAndBankodAndLoppAndNamn(datum, bankod, lap, safeName); //Changed!
+        Optional<ResultHorse> existingOpt = resultRepo
+                .findByDatumAndBankodAndLoppAndNamn(datum, bankod, lap, safeName);
 
-        if (existingOpt.isEmpty()) return null; //Changed!  // skapa aldrig ny rad
+        if (existingOpt.isEmpty()) return null;
 
-        ResultHorse rh = existingOpt.get(); //Changed!
+        ResultHorse rh = existingOpt.get();
 
-        Integer currentOdds = rh.getOdds(); //Changed!
-        if (currentOdds == null || currentOdds == 999) { //Changed!
-            rh.setOdds(parsedOdds); //Changed!
-            return rh; //Changed!
-        } //Changed!
+        Integer currentOdds = rh.getOdds();
+        if (currentOdds == null || currentOdds == 999) {
+            rh.setOdds(parsedOdds);
+            return rh;
+        }
 
-        return null; //Changed!
-    } //Changed!
-
-
-
+        return null;
+    }
 }

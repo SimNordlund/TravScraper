@@ -4,10 +4,10 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table( //Changed!
-        name = "resultat", //Changed!
-        uniqueConstraints = @UniqueConstraint(columnNames = {"datum","bankod","lopp","namn"}) //Changed!
-) //Changed!
+@Table(
+        name = "resultat",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"datum","bankod","lopp","namn"})
+)
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
@@ -22,15 +22,15 @@ public class ResultHorse {
     @Column(name = "datum", nullable = false)
     private Integer datum;
 
-    @Column(name = "bankod", length = 20, nullable = false) //Changed!
+    @Column(name = "bankod", length = 20, nullable = false)
     private String bankod;
 
     @Column(name = "lopp", nullable = false)
     private Integer lopp;
 
-    @Builder.Default //Changed!
-    @Column(name = "nr", nullable = false) //Changed!
-    private Integer nr = 0; //Changed!
+    @Builder.Default
+    @Column(name = "nr", nullable = false)
+    private Integer nr = 0;
 
     @Builder.Default
     @Column(name = "namn", nullable = false, length = 50)
@@ -56,32 +56,32 @@ public class ResultHorse {
     @Column(name = "galopp", nullable = false, length = 1)
     private String galopp = "";
 
-    @Builder.Default //Changed!
-    @Column(name = "underlag", nullable = false, length = 3) //Changed!
-    private String underlag = ""; //Changed!
+    @Builder.Default
+    @Column(name = "underlag", nullable = false, length = 3)
+    private String underlag = "";
 
-    @Builder.Default //Changed!
-    @Column(name = "pris", nullable = false) //Changed!
-    private Integer pris = 0; //Changed!
+    @Builder.Default
+    @Column(name = "pris", nullable = false)
+    private Integer pris = 0;
 
-    @Builder.Default //Changed!
-    @Column(name = "odds", nullable = false) //Changed!
-    private Integer odds = 999; //Changed!
+    @Builder.Default
+    @Column(name = "odds", nullable = false)
+    private Integer odds = 999;
 
-    @Builder.Default //Changed!
-    @Column(name = "kusk", nullable = false, length = 80) //Changed!
-    private String kusk = ""; //Changed!
+    @Builder.Default
+    @Column(name = "kusk", nullable = false, length = 80)
+    private String kusk = "";
 
-    @PrePersist //Changed!
-    @PreUpdate  //Changed!
-    private void applyNonNullDefaults() { //Changed!
-        if (nr == null) nr = 0; //Changed!
-        if (namn == null) namn = ""; //Changed!
-        if (startmetod == null) startmetod = ""; //Changed!
-        if (galopp == null) galopp = ""; //Changed!
-        if (underlag == null) underlag = ""; //Changed!
-        if (pris == null) pris = 0; //Changed!
-        if (odds == null) odds = 999; //Changed!
-        if (kusk == null) kusk = ""; //Changed!
-    } //Changed!
+    @PrePersist
+    @PreUpdate
+    private void applyNonNullDefaults() {
+        if (nr == null) nr = 0;
+        if (namn == null) namn = "";
+        if (startmetod == null) startmetod = "";
+        if (galopp == null) galopp = "";
+        if (underlag == null) underlag = "";
+        if (pris == null) pris = 0;
+        if (odds == null) odds = 999;
+        if (kusk == null) kusk = "";
+    }
 }
