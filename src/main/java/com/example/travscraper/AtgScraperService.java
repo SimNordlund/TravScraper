@@ -306,7 +306,8 @@ public class AtgScraperService {
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 log.info("📆  Scraping FUTURE {}", date);
-                List<String> tracks = tracksFor(date);
+                 List<String> tracks = tracksFor(date);
+                //List<String> tracks = List.of("bjerke");
                 for (String track : tracks) {
                     processDateTrackFuture(date, track);
                 }
