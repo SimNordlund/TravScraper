@@ -150,6 +150,7 @@ public class AtgScraperService {
             Map.entry("leangen", "Le"),
             Map.entry("momarken", "Mo"),
             Map.entry("sorlandet", "Sö"),
+            Map.entry("orkla", "Oa"),
 
             Map.entry("arhus", "Aa"),
             Map.entry("billund", "Bi"),
@@ -818,7 +819,32 @@ public class AtgScraperService {
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 log.info("📆  Scraping RESULTAT (popup) {}", date);
-                List<String> tracks = tracksFor(date);
+               // List<String> tracks = tracksFor(date);
+                List<String> tracks = List.of( //Changed!
+                        "bjerke",
+                        "orkla",
+                        "bodo",
+                        "biri",
+                        "bergen",
+                        "drammen",
+                        "forus",
+                        "harstad",
+                        "haugaland",
+                        "jarlsberg",
+                        "klosterskogen",
+                        "leangen",
+                        "momarken",
+                        "sorlandet",
+                        "arhus",
+                        "billund",
+                        "bornholm",
+                        "charlottenlund",
+                        "nykobing",
+                        "odense",
+                        "skive",
+                        "alborg"
+                );
+
                 for (String track : tracks) {
                     processDateTrackResultatPopups(date, track);
                 }
