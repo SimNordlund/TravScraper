@@ -1082,6 +1082,31 @@ public class AtgScraperService {
 
         List<ResultHorse> oddsUpdates = new ArrayList<>();
 
+        List<String> track1337 = List.of( //Changed!
+                "bjerke",
+                "orkla",
+                "bodo",
+                "biri",
+                "bergen",
+                "drammen",
+                "forus",
+                "harstad",
+                "haugaland",
+                "jarlsberg",
+                "klosterskogen",
+                "leangen",
+                "momarken",
+                "sorlandet",
+                "arhus",
+                "billund",
+                "bornholm",
+                "charlottenlund",
+                "nykobing",
+                "odense",
+                "skive",
+                "alborg"
+        );
+
         for (Element tr : rows) {
             String nr = extractStartNumber(tr);
             if (nr.isBlank()) {
@@ -1135,7 +1160,12 @@ public class AtgScraperService {
 
             toSave.add(fh);
 
-            ResultHorse rhOdds = buildOrUpdateResultOddsForFuture(date, bankode, lap, normalizedName, vOdds);
+            boolean allowCreateResultRow = track1337.contains(trackKey(track)) //Changed!
+                    || track1337.contains(trackKey(BANKODE_TO_SLUG.getOrDefault(bankode, ""))); //Changed!
+
+            ResultHorse rhOdds = buildOrUpdateResultOddsForFuture( //Changed!
+                    date, bankode, lap, normalizedName, nr, vOdds, allowCreateResultRow //Changed!
+            );
             if (rhOdds != null) oddsUpdates.add(rhOdds);
         }
 
@@ -1164,16 +1194,35 @@ public class AtgScraperService {
         if (!oddsUpdates.isEmpty()) {
             try {
                 resultRepo.saveAll(oddsUpdates);
-                log.info("💾 (future) Uppdaterade {} odds i RESULTAT för {} {} lap {}", oddsUpdates.size(), date, track, lap);
+                log.info("💾 (future) Uppdaterade/skapade {} odds-rader i RESULTAT för {} {} lap {}", oddsUpdates.size(), date, track, lap); //Changed!
             } catch (DataIntegrityViolationException dive) {
                 log.warn("🔁 (future) saveAll odds krockade, retrying per row på {} {} lap {}: {}",
                         date, track, lap, dive.getMostSpecificCause().getMessage());
+
                 for (ResultHorse rh : oddsUpdates) {
                     try {
                         resultRepo.save(rh);
                     } catch (DataIntegrityViolationException ignored) {
-                        log.warn("⚠️  (future) Kunde inte spara odds datum={} bankod={} lopp={} namn={}",
-                                rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn());
+                        // Om vi försökte INSERT:a en ny rad men den hann skapas av någon annan,
+                        // gör en lookup och uppdatera odds om den fortfarande är 999/null. //Changed!
+                        try { //Changed!
+                            Optional<ResultHorse> existing = resultRepo //Changed!
+                                    .findByDatumAndBankodAndLoppAndNamn(rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn()); //Changed!
+                            if (existing.isPresent()) { //Changed!
+                                ResultHorse e = existing.get(); //Changed!
+                                Integer currentOdds = e.getOdds(); //Changed!
+                                if (currentOdds == null || currentOdds == 999) { //Changed!
+                                    e.setOdds(rh.getOdds()); //Changed!
+                                    resultRepo.save(e); //Changed!
+                                } //Changed!
+                            } else { //Changed!
+                                log.warn("⚠️  (future) Kunde inte hitta rad efter krock datum={} bankod={} lopp={} namn={}", //Changed!
+                                        rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn()); //Changed!
+                            } //Changed!
+                        } catch (Exception ex) { //Changed!
+                            log.warn("⚠️  (future) Kunde inte retry-upserta odds datum={} bankod={} lopp={} namn={} ({})", //Changed!
+                                    rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn(), ex.getMessage()); //Changed!
+                        } //Changed!
                     }
                 }
             }
@@ -1816,8 +1865,8 @@ public class AtgScraperService {
         return null;
     }
 
-    private ResultHorse buildOrUpdateResultOddsForFuture(
-            LocalDate date, String bankod, int lap, String horseName, String vOdds
+    private ResultHorse buildOrUpdateResultOddsForFuture( //Changed!
+                                                          LocalDate date, String bankod, int lap, String horseName, String startNumber, String vOdds, boolean allowCreateIfMissing //Changed!
     ) {
         Integer parsedOdds = parseOddsToInt(vOdds);
         if (parsedOdds == null) return null;
@@ -1829,18 +1878,42 @@ public class AtgScraperService {
         Optional<ResultHorse> existingOpt = resultRepo
                 .findByDatumAndBankodAndLoppAndNamn(datum, bankod, lap, safeName);
 
-        if (existingOpt.isEmpty()) return null;
+        if (existingOpt.isPresent()) {
+            ResultHorse rh = existingOpt.get();
 
-        ResultHorse rh = existingOpt.get();
+            Integer currentOdds = rh.getOdds();
+            if (currentOdds == null || currentOdds == 999) {
+                rh.setOdds(parsedOdds);
+                return rh;
+            }
 
-        Integer currentOdds = rh.getOdds();
-        if (currentOdds == null || currentOdds == 999) {
-            rh.setOdds(parsedOdds);
-            return rh;
+            return null;
         }
 
-        return null;
+        if (!allowCreateIfMissing) return null; //Changed!
+
+        int parsedNr = 0; //Changed!
+        if (startNumber != null) { //Changed!
+            String digits = startNumber.replaceAll("\\D+", ""); //Changed!
+            if (!digits.isBlank()) { //Changed!
+                try { //Changed!
+                    parsedNr = Integer.parseInt(digits); //Changed!
+                } catch (NumberFormatException ignored) { //Changed!
+                    parsedNr = 0; //Changed!
+                } //Changed!
+            } //Changed!
+        } //Changed!
+
+        return ResultHorse.builder() //Changed!
+                .datum(datum) //Changed!
+                .bankod(bankod) //Changed!
+                .lopp(lap) //Changed!
+                .nr(parsedNr) //Changed!
+                .namn(safeName) //Changed!
+                .odds(parsedOdds) //Changed!
+                .build(); //Changed!
     }
+
 
     private record TrackLap(String bankod, Integer lopp) {
     }
