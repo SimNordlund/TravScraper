@@ -42,67 +42,41 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class AtgScraperService {
 
-    private final ScraperProperties props;
-    private final ScrapedHorseRepo repo;
-    private final FutureHorseRepo futureRepo;
-    private final StartListHorseRepo startListRepo;
-
-    private final ResultHorseRepo resultRepo;
-
-    private Playwright playwright;
-    private Browser browser;
-    private BrowserContext ctx;
-    private final ReentrantLock lock = new ReentrantLock();
-
     private static final DateTimeFormatter URL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter YYMMDD_FORMAT = DateTimeFormatter.ofPattern("yyMMdd");
-
     private static final Pattern PLACERING_WITH_R = Pattern.compile("^(\\d{1,2})r$");
     private static final Pattern ISO_DATE = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$");
     private static final Pattern HAS_LETTER = Pattern.compile(".*\\p{L}.*");
-
     private static final int RESULTAT_MAX_HORSES_PER_LAP = 999;
     private static final int RESULTAT_MAX_ROWS_PER_HORSE = 999;
-
     private static final Pattern TRACK_LAP_PATTERN = Pattern.compile("^\\s*(.+?)\\s*-\\s*(\\d+)\\s*$");
     private static final Pattern DIGITS_ONLY = Pattern.compile("(\\d{6,8})");
-
     private static final Pattern RESULT_HREF_PATTERN = Pattern.compile(
             "/spel/(\\d{4}-\\d{2}-\\d{2})/vinnare/([^/]+)/lopp/(\\d+)/resultat"
     );
-
     private static final Pattern PRIS_APOSTROPHE = Pattern.compile("^\\s*(\\d{1,6})\\s*['’]\\s*$");
     private static final Pattern PRIS_THOUSANDS = Pattern.compile("^\\s*(\\d{1,3}(?:[ \\u00A0\\.]\\d{3})+|\\d{4,})\\s*(?:kr)?\\s*$", Pattern.CASE_INSENSITIVE);
     private static final Pattern PRIS_K = Pattern.compile("^\\s*(\\d{1,6})\\s*k\\s*$", Pattern.CASE_INSENSITIVE);
     private static final Pattern ODDS_NUMBER = Pattern.compile("^\\s*(\\d{1,4})(?:[\\.,](\\d{1,2}))?\\s*$");
-
-
-
     private static final String SEL_COOKIE_BUTTONS =
             "button:has-text(\"Tillåt alla\"):visible, " +
                     "button:has-text(\"Avvisa\"):visible, " +
                     "button:has-text(\"Godkänn alla cookies\"):visible, " +
                     "button:has-text(\"Jag förstår\"):visible";
-
-
     private static final String SEL_EXPAND_ALL =
             "button[data-test-id=\"expand-startlist-view\"], button:has-text(\"Utöka alla\"), button:has-text(\"Utöka\")";
-
-
     private static final String SEL_MER_INFO_VISIBLE =
             "button[data-test-id*=\"previous-starts\"][data-test-id*=\"show-more\"]:visible, " +
                     "button[data-test-id=\"previous-starts-toggle-show-more-button\"]:visible, " +
                     "button:has-text(\"Mer info\"):visible, " +
                     "button:has-text(\"Visa mer\"):visible, " +
                     "button:has-text(\"Visa mer info\"):visible";
-
     private static final String SEL_PREVSTARTS_WRAPPER_ANY =
             "#previous-starts-table-container, " +
                     "div[class*=\"PreviousStarts-styles--tableWrapper\"], " +
                     "div[class*=\"previousStarts-styles--tableWrapper\"], " +
                     "div[class*=\"PreviousStarts\"][class*=\"tableWrapper\"], " +
                     "div[class*=\"previousStarts\"][class*=\"tableWrapper\"]";
-
     private static final String SEL_PREVSTARTS_ROWS_ANY =
             "#previous-starts-table-container tbody tr, " +
                     "div[class*=\"PreviousStarts-styles--tableWrapper\"] tbody tr, " +
@@ -110,12 +84,7 @@ public class AtgScraperService {
                     "div[class*=\"PreviousStarts\"][class*=\"tableWrapper\"] tbody tr, " +
                     "div[class*=\"previousStarts\"][class*=\"tableWrapper\"] tbody tr, " +
                     "[data-test-id=\"result-date\"], [data-test-id=\"result-date\"] span";
-
-
-
     private static final Pattern TIME_VALUE = Pattern.compile("(?:\\d+\\.)?(\\d{1,2})[\\.,](\\d{1,2})");
-
-
     private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
             Map.entry("arvika", "Ar"), Map.entry("axevalla", "Ax"),
             Map.entry("bergsaker", "B"), Map.entry("boden", "Bo"),
@@ -161,13 +130,25 @@ public class AtgScraperService {
             Map.entry("skive", "Se"),
             Map.entry("alborg", "Ål")
     );
-
     private static final Map<String, String> BANKODE_TO_SLUG;
+    private static final String DEFAULT_BANKOD = "XX";
+    private static final int RESULT_BANKOD_MAX_LEN = 20;
+
     static {
         Map<String, String> m = new HashMap<>();
         FULLNAME_TO_BANKODE.forEach((slug, code) -> m.put(code, slug));
         BANKODE_TO_SLUG = Collections.unmodifiableMap(m);
     }
+
+    private final ScraperProperties props;
+    private final ScrapedHorseRepo repo;
+    private final FutureHorseRepo futureRepo;
+    private final StartListHorseRepo startListRepo;
+    private final ResultHorseRepo resultRepo;
+    private final ReentrantLock lock = new ReentrantLock();
+    private Playwright playwright;
+    private Browser browser;
+    private BrowserContext ctx;
 
     private static int toYyyymmdd(LocalDate d) {
         return d.getYear() * 10000 + d.getMonthValue() * 100 + d.getDayOfMonth();
@@ -179,8 +160,394 @@ public class AtgScraperService {
                 .toLowerCase();
     }
 
-    private static final String DEFAULT_BANKOD = "XX";
+    private static String trackKey(String trackLike) {
+        if (trackLike == null) return "";
+        String k = slugify(trackLike);
+        k = k.replace('-', ' ').replace('_', ' ');
+        k = k.replaceAll("\\s+", " ").trim();
+        return k;
+    }
 
+    private static String toKnownBankodOrNull(String trackLike) {
+        String key = trackKey(trackLike);
+        if (key.isBlank()) return null;
+        return FULLNAME_TO_BANKODE.get(key);
+    }
+
+    private static String extractUnderlagFromTds(Elements tds) {
+        if (tds == null || tds.isEmpty()) return "";
+
+        String best = "";
+        Pattern paren = Pattern.compile("\\(([^)]{1,20})\\)");
+
+        for (Element td : tds) {
+            String raw = normalizeCellText(td.text());
+            if (raw.isBlank()) continue;
+
+            Matcher m = paren.matcher(raw);
+            while (m.find()) {
+                String cleaned = sanitizeUnderlag(m.group(1));
+                if (cleaned.isBlank()) continue;
+
+                if (cleaned.length() > best.length() || cleaned.length() == best.length()) {
+                    best = cleaned;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static String sanitizeUnderlag(String raw) {
+        if (raw == null) return "";
+        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
+        if (t.isBlank()) return "";
+
+        String letters = t.replaceAll("[^a-z]", "");
+
+        boolean hasK = letters.indexOf('k') >= 0;
+        boolean hasM = letters.indexOf('m') >= 0;
+        boolean hasN = letters.indexOf('n') >= 0;
+
+        StringBuilder out = new StringBuilder(3);
+        if (hasK) out.append('k');
+        if (hasM) out.append('m');
+        if (hasN) out.append('n');
+
+        return out.toString();
+    }
+
+    private static String trimToMax(String s, int max) {
+        if (s == null) return "";
+        if (s.length() <= max) return s;
+        return s.substring(0, max);
+    }
+
+    private static int[] findDistSparFromTds(Elements tds) {
+        int[] out = new int[]{-1, -1, -1};
+        if (tds == null || tds.isEmpty()) return out;
+
+        Pattern p = Pattern.compile("^(\\d{3,4})\\s*:\\s*(\\d{1,2})?\\s*$");
+        for (int i = 0; i < tds.size(); i++) {
+            String txt = normalizeCellText(tds.get(i).text());
+            Matcher m = p.matcher(txt);
+            if (m.matches()) {
+                try {
+                    out[0] = Integer.parseInt(m.group(1));
+                    String g2 = m.group(2);
+                    out[1] = (g2 == null || g2.isBlank()) ? 1 : Integer.parseInt(g2);
+                    out[2] = i;
+                    return out;
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+
+        Pattern distOnly = Pattern.compile("^(\\d{3,4})\\s*(?:m)?\\s*$", Pattern.CASE_INSENSITIVE);
+        for (int i = 0; i < tds.size(); i++) {
+            String txt = normalizeCellText(tds.get(i).text());
+            Matcher m = distOnly.matcher(txt);
+            if (!m.matches()) continue;
+
+            int dist;
+            try {
+                dist = Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) {
+                continue;
+            }
+
+            if (dist < 600 || dist > 4000) continue;
+
+            String next = (i + 1 < tds.size()) ? normalizeCellText(tds.get(i + 1).text()) : "";
+            boolean nextLooksLikeTime = false;
+            if (!next.isBlank()) {
+                TidInfo ti = parseTidCell(next, true);
+                nextLooksLikeTime = (ti.tid() != null || ti.startmetod() != null || ti.galopp() != null
+                        || TIME_VALUE.matcher(next).find());
+            }
+            if (!nextLooksLikeTime) continue;
+
+            out[0] = dist;
+            out[1] = 1;
+            out[2] = i;
+            return out;
+        }
+
+        return out;
+    }
+
+    private static Integer mapPlaceringValue(String raw) {
+        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
+        if (t.isBlank()) return null;
+
+        String token = t.split("\\s+")[0].replaceAll("[^0-9\\p{L}]", "");
+        if (token.isBlank()) return null;
+
+        Matcher mr = PLACERING_WITH_R.matcher(token);
+        if (mr.matches()) token = mr.group(1);
+
+        if (token.equals("k") || token.equals("p") || token.equals("str") || token.equals("d")) return 99;
+
+        if (!token.matches("^\\d+$")) return null;
+        if (token.length() > 2) return null;
+
+        try {
+            int v = Integer.parseInt(token);
+            if (v == 0 || v == 9) return 15;
+            return v;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static Integer extractPlaceringFromTds(Elements tds, int distIdx) {
+        if (tds == null || tds.isEmpty()) return null;
+
+        for (int i = 0; i < tds.size(); i++) {
+            Element td = tds.get(i);
+            if (td.selectFirst("span[style*=font-weight]") != null) {
+                Integer v = mapPlaceringValue(td.text());
+                if (v != null) return v;
+            }
+        }
+
+        int max = (distIdx >= 0 ? distIdx : tds.size());
+        for (int i = 0; i < max; i++) {
+            Integer v = mapPlaceringValue(tds.get(i).text());
+            if (v != null) return v;
+        }
+
+        return null;
+    }
+
+    private static TidInfo extractTidFromTds(Elements tds, int distIdx) {
+        if (tds == null || tds.isEmpty()) return new TidInfo(null, null, null);
+
+        if (distIdx >= 0 && distIdx + 1 < tds.size()) {
+            TidInfo info = parseTidCell(tds.get(distIdx + 1).text(), true);
+            if (info.tid != null || info.startmetod != null || info.galopp != null) return info;
+        }
+
+        for (int i = 0; i < tds.size(); i++) {
+            String raw = normalizeCellText(tds.get(i).text());
+            if (raw.contains(":")) continue;
+
+            TidInfo info = parseTidCell(raw);
+            if (info.tid == null && info.startmetod == null && info.galopp == null) continue;
+
+            if (info.tid != null && Double.compare(info.tid, 99.0) == 0) return info;
+
+            if (info.tid != null && info.startmetod == null && info.galopp == null && raw.matches(".*\\d+[\\.,]\\d{2}.*")) {
+                continue;
+            }
+
+            if (info.tid != null && info.tid >= 8.0 && info.tid <= 60.0) return info;
+
+            if (info.startmetod != null || info.galopp != null) return info;
+        }
+
+        return new TidInfo(null, null, null);
+    }
+
+    private static Integer parseFirstInt(String s) {
+        String txt = normalizeCellText(s);
+        Matcher m = Pattern.compile("(\\d{1,4})").matcher(txt);
+        if (!m.find()) return null;
+        try {
+            return Integer.parseInt(m.group(1));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static TidInfo parseTidCell(String raw) {
+        return parseTidCell(raw, false);
+    }
+
+    private static TidInfo parseTidCell(String raw, boolean integerNoCommaMeans99) {
+        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
+        if (t.isBlank()) return new TidInfo(null, null, null);
+
+        t = t.replaceAll("[()\\s]", "");
+
+        String letters = t.replaceAll("[0-9\\.,]", "");
+
+        String startmetod = letters.contains("a") ? "a" : null;
+        String galopp = letters.contains("g") ? "g" : null;
+
+        boolean force99 = letters.contains("dist")
+                || letters.contains("kub")
+                || letters.contains("vmk")
+                || letters.contains("u")
+                || letters.contains("d");
+
+        Double time = null;
+        Matcher m = TIME_VALUE.matcher(t);
+        if (m.find()) {
+            try {
+                time = Double.parseDouble(m.group(1) + "." + m.group(2));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        if (force99) return new TidInfo(99.0, startmetod, galopp);
+
+        if (time == null) {
+            boolean hasSep = t.contains(",") || t.contains(".");
+            String digits = t.replaceAll("\\D+", "");
+            if (!hasSep && !digits.isBlank() && digits.length() <= 2) {
+                if (integerNoCommaMeans99 || !letters.isBlank()) {
+                    return new TidInfo(99.0, startmetod, galopp);
+                }
+            }
+        }
+
+        return new TidInfo(time, startmetod, galopp);
+    }
+
+    private static String normalizeCellText(String s) {
+        if (s == null) return "";
+        return s.replace('\u00A0', ' ').trim();
+    }
+
+    private static String normalizeHorseNameSimple(String raw) {
+        String s = normalizeCellText(raw);
+        if (s.isBlank()) return "";
+        s = s.replace("'", "").replace("’", "");
+        s = s.toUpperCase(Locale.ROOT);
+        return trimToMax(s, 50);
+    }
+
+    private static String toResultBankod(String trackLike) {
+        if (trackLike == null || trackLike.isBlank()) return DEFAULT_BANKOD;
+
+        String key = trackKey(trackLike);
+        String code = FULLNAME_TO_BANKODE.get(key);
+        if (code != null && !code.isBlank()) return code;
+
+        String fallback = trimToMax(key, RESULT_BANKOD_MAX_LEN);
+        if (fallback.isBlank()) return DEFAULT_BANKOD;
+
+        log.warn("⚠️  Okänd bana '{}' (key='{}'), använder '{}' som bankod i RESULT-tabellen",
+                trackLike, key, fallback);
+        return fallback;
+    }
+
+    private static Integer extractPrisFromTds(Elements tds, int distIdx) {
+        if (tds == null || tds.isEmpty()) return 0;
+
+        int start = (distIdx >= 0 ? Math.min(distIdx + 2, tds.size()) : 0);
+        Integer last = null;
+
+        for (int i = start; i < tds.size(); i++) {
+            String raw = normalizeCellText(tds.get(i).text());
+            Integer v = parsePrisToInt(raw);
+            if (v != null) last = v;
+        }
+
+        return last != null ? last : 0;
+    }
+
+    private static Integer parsePrisToInt(String raw) {
+        String t = normalizeCellText(raw);
+        if (t.isBlank()) return null;
+
+        t = t.replaceAll("[()]", "").trim();
+
+        Matcher ma = PRIS_APOSTROPHE.matcher(t);
+        if (ma.matches()) {
+            try {
+                return Integer.parseInt(ma.group(1)) * 1000;
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+
+        Matcher mk = PRIS_K.matcher(t);
+        if (mk.matches()) {
+            try {
+                return Integer.parseInt(mk.group(1)) * 1000;
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+
+        if (t.contains(",") && !t.contains(" ")) return null;
+
+        Matcher mt = PRIS_THOUSANDS.matcher(t);
+        if (mt.matches()) {
+            String digits = mt.group(1).replaceAll("[\\s\\u00A0\\.]", "");
+            try {
+                return Integer.parseInt(digits);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private static Integer extractOddsFromTds(Elements tds, int distIdx) {
+        if (tds == null || tds.isEmpty()) return 999;
+
+        int timeIdx = (distIdx >= 0 ? distIdx + 1 : -1);
+        int start = (timeIdx >= 0 ? Math.min(timeIdx + 1, tds.size()) : 0);
+
+        Integer last = null;
+        for (int i = start; i < tds.size(); i++) {
+            String raw = normalizeCellText(tds.get(i).text());
+            if (raw.isBlank()) continue;
+
+            if (raw.contains("'") || raw.contains("’")) continue;
+
+            Integer v = parseOddsToInt(raw);
+            if (v != null) last = v;
+        }
+
+        return last != null ? last : 999;
+    }
+
+    private static Integer parseOddsToInt(String raw) {
+        String t = normalizeCellText(raw).replaceAll("[()]", "").trim();
+        if (t.isBlank()) return null;
+
+        if (t.codePoints().anyMatch(Character::isLetter)) return null;
+
+        Matcher m = ODDS_NUMBER.matcher(t);
+        if (!m.matches()) return null;
+
+        String a = m.group(1);
+        String b = m.group(2);
+
+        try {
+            BigDecimal val = new BigDecimal(a + "." + (b == null ? "0" : b));
+            BigDecimal scaled = val.multiply(BigDecimal.TEN);
+            int rounded = scaled.setScale(0, RoundingMode.HALF_UP).intValue();
+
+            if (rounded < 0 || rounded > 9999) return null;
+            return rounded;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static int findHeaderIndex(Element container, Pattern headerRx) {
+        if (container == null) return -1;
+        Element head = container.selectFirst("thead");
+        if (head == null) return -1;
+
+        Elements hs = head.select("th, td");
+        for (int i = 0; i < hs.size(); i++) {
+            String txt = normalizeCellText(hs.get(i).text());
+            if (headerRx.matcher(txt).find()) return i;
+        }
+        return -1;
+    }
+
+    private static String textAt(Elements tds, int idx) {
+        if (tds == null || idx < 0 || idx >= tds.size()) return "";
+        return normalizeCellText(tds.get(idx).text());
+    }
 
     private List<String> tracksFor(LocalDate date) {
         int yyyymmdd = toYyyymmdd(date);
@@ -203,12 +570,27 @@ public class AtgScraperService {
 
     private List<String> tracksForForeign(LocalDate date) {
         List<String> codes = new ArrayList<>();
-        codes.add("Bd"); codes.add("Br"); codes.add("Bt"); codes.add("Dr");
-        codes.add("Fs"); codes.add("Ha"); codes.add("Ht"); codes.add("Ja");
-        codes.add("Kl"); codes.add("Le"); codes.add("Mo"); codes.add("Sö");
+        codes.add("Bd");
+        codes.add("Br");
+        codes.add("Bt");
+        codes.add("Dr");
+        codes.add("Fs");
+        codes.add("Ha");
+        codes.add("Ht");
+        codes.add("Ja");
+        codes.add("Kl");
+        codes.add("Le");
+        codes.add("Mo");
+        codes.add("Sö");
 
-        codes.add("Aa"); codes.add("Bi"); codes.add("Bm"); codes.add("Ch");
-        codes.add("Ny"); codes.add("Od"); codes.add("Se"); codes.add("Ål");
+        codes.add("Aa");
+        codes.add("Bi");
+        codes.add("Bm");
+        codes.add("Ch");
+        codes.add("Ny");
+        codes.add("Od");
+        codes.add("Se");
+        codes.add("Ål");
 
         if (codes.isEmpty()) {
             log.info("ℹ️  Inga banor i startlista för {}", date);
@@ -306,9 +688,37 @@ public class AtgScraperService {
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 log.info("📆  Scraping FUTURE {}", date);
-                 List<String> tracks = tracksFor(date);
-                //List<String> tracks = List.of("bjerke");
+                List<String> tracks = tracksFor(date);
+                List<String> hardcodedTracks = List.of( //Changed!
+                        "bjerke",
+                        "orkla",
+                        "bodo",
+                        "biri",
+                        "bergen",
+                        "drammen",
+                        "forus",
+                        "harstad",
+                        "haugaland",
+                        "jarlsberg",
+                        "klosterskogen",
+                        "leangen",
+                        "momarken",
+                        "sorlandet",
+                        "arhus",
+                        "billund",
+                        "bornholm",
+                        "charlottenlund",
+                        "nykobing",
+                        "odense",
+                        "skive",
+                        "alborg"
+                );
+
                 for (String track : tracks) {
+                    processDateTrackFuture(date, track);
+                }
+
+                for (String track : hardcodedTracks) {
                     processDateTrackFuture(date, track);
                 }
             }
@@ -334,31 +744,31 @@ public class AtgScraperService {
         );
 
         ctx.addInitScript(""" 
-          () => {
-             försök minska anti-bot-detektering
-            try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch(e) {}
-            try { Object.defineProperty(navigator, 'languages', { get: () => ['sv-SE','sv','en-US','en'] }); } catch(e) {}
-            try { Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] }); } catch(e) {}
+                  () => {
+                     försök minska anti-bot-detektering
+                    try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch(e) {}
+                    try { Object.defineProperty(navigator, 'languages', { get: () => ['sv-SE','sv','en-US','en'] }); } catch(e) {}
+                    try { Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] }); } catch(e) {}
 
-            const tryClick = () => {
-              const patterns = [
-                /Jag\\s*f(ö|o)rst(å|a)r/i,
-                /Godk(ä|a)nn\\s+alla\\s+cookies/i,
-                /Endast\\s+n(ö|o)dv(ä|a)ndiga/i,
-                /Tillåt\\s+alla/i,
-                /Avvisa/i
-              ];
-              try {
-                const btn = [...document.querySelectorAll('button')]
-                  .find(b => patterns.some(rx => rx.test(b.textContent)));
-                if (btn) btn.click();
-              } catch (_) {}
-            };
-            tryClick();
-            setTimeout(tryClick, 400);
-            setTimeout(tryClick, 4000);
-          }
-        """);
+                    const tryClick = () => {
+                      const patterns = [
+                        /Jag\\s*f(ö|o)rst(å|a)r/i,
+                        /Godk(ä|a)nn\\s+alla\\s+cookies/i,
+                        /Endast\\s+n(ö|o)dv(ä|a)ndiga/i,
+                        /Tillåt\\s+alla/i,
+                        /Avvisa/i
+                      ];
+                      try {
+                        const btn = [...document.querySelectorAll('button')]
+                          .find(b => patterns.some(rx => rx.test(b.textContent)));
+                        if (btn) btn.click();
+                      } catch (_) {}
+                    };
+                    tryClick();
+                    setTimeout(tryClick, 400);
+                    setTimeout(tryClick, 4000);
+                  }
+                """);
     }
 
     private void processDateTrack(LocalDate date, String track) {
@@ -460,7 +870,10 @@ public class AtgScraperService {
                 Map<String, String> trioMap = extractTrioMap(tPage);
 
                 parseAndPersist(vPage.content(), date, track, lap, pMap, trioMap);
-                try { Thread.sleep(600 + (int) (Math.random() * 1200)); } catch (InterruptedException ignored) {}
+                try {
+                    Thread.sleep(600 + (int) (Math.random() * 1200));
+                } catch (InterruptedException ignored) {
+                }
             } catch (PlaywrightException e) {
                 log.warn("⚠️  Playwright-fel på {}: {}", vUrl, e.getMessage());
                 if (e.getMessage() != null && e.getMessage().contains("Timeout")) {
@@ -534,7 +947,10 @@ public class AtgScraperService {
 
                 parseAndPersistFuture(page.content(), date, track, lap);
 
-                try { Thread.sleep(600 + (int) (Math.random() * 1200)); } catch (InterruptedException ignored) {}
+                try {
+                    Thread.sleep(600 + (int) (Math.random() * 1200));
+                } catch (InterruptedException ignored) {
+                }
             } catch (PlaywrightException e) {
                 log.warn("⚠️  Playwright-fel på {}: {}", url, e.getMessage());
                 if (e.getMessage() != null && e.getMessage().contains("Timeout")) {
@@ -586,21 +1002,6 @@ public class AtgScraperService {
         }
         return map;
     }
-
-    private static String trackKey(String trackLike) {
-        if (trackLike == null) return "";
-        String k = slugify(trackLike);
-        k = k.replace('-', ' ').replace('_', ' ');
-        k = k.replaceAll("\\s+", " ").trim();
-        return k;
-    }
-
-    private static String toKnownBankodOrNull(String trackLike) {
-        String key = trackKey(trackLike);
-        if (key.isBlank()) return null;
-        return FULLNAME_TO_BANKODE.get(key);
-    }
-
 
     private Map<String, String> extractTrioMap(Page page) {
         Map<String, String> map = new HashMap<>();
@@ -781,7 +1182,6 @@ public class AtgScraperService {
         log.info("💾 (future) Saved/updated {} horses for {} {} lap {}", toSave.size(), date, track, lap);
     }
 
-
     private String extractStartNumber(Element tr) {
         Element numBtn = tr.selectFirst("button[data-test-start-number]");
         if (numBtn != null) {
@@ -801,11 +1201,9 @@ public class AtgScraperService {
         return "";
     }
 
-
     public void runResultatPopupScrape() {
         scrapeResultatPopupsOnly();
     }
-
 
     public void scrapeResultatPopupsOnly() {
         if (!lock.tryLock()) {
@@ -820,8 +1218,8 @@ public class AtgScraperService {
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 log.info("📆  Scraping RESULTAT (popup) {}", date);
-               // List<String> tracks = tracksFor(date);
-                List<String> tracks = List.of( //Changed!
+                //List<String> tracks = tracksFor(date);
+                List<String> hardcodedTracks = List.of( //Changed!
                         "bjerke",
                         "orkla",
                         "bodo",
@@ -845,8 +1243,11 @@ public class AtgScraperService {
                         "skive",
                         "alborg"
                 );
+                //    for (String track : tracks) {
+                //        processDateTrackResultatPopups(date, track);
+                //    }
 
-                for (String track : tracks) {
+                for (String track : hardcodedTracks) {
                     processDateTrackResultatPopups(date, track);
                 }
             }
@@ -854,8 +1255,6 @@ public class AtgScraperService {
             lock.unlock();
         }
     }
-
-
 
     private void processDateTrackResultatPopups(LocalDate date, String track) {
         ensureContext();
@@ -918,13 +1317,15 @@ public class AtgScraperService {
         }
     }
 
-
     private void dismissCookiesIfPresent(Page page) {
         try {
             Locator cookie = page.locator(SEL_COOKIE_BUTTONS);
             if (cookie.count() > 0) {
                 robustClick(cookie.first(), 10_000);
-                try { page.waitForTimeout(250); } catch (PlaywrightException ignored) {}
+                try {
+                    page.waitForTimeout(250);
+                } catch (PlaywrightException ignored) {
+                }
             }
         } catch (PlaywrightException ignored) {
         }
@@ -938,7 +1339,6 @@ public class AtgScraperService {
 
         try {
             btn.click(new Locator.ClickOptions().setTimeout(timeoutMs).setForce(true));
-            return;
         } catch (PlaywrightException e) {
             try {
                 btn.evaluate("el => el.click()");
@@ -968,7 +1368,10 @@ public class AtgScraperService {
         Locator btn = expand.first();
         try {
             robustClick(btn, 15_000);
-            try { page.waitForLoadState(LoadState.NETWORKIDLE); } catch (PlaywrightException ignored) {}
+            try {
+                page.waitForLoadState(LoadState.NETWORKIDLE);
+            } catch (PlaywrightException ignored) {
+            }
         } catch (PlaywrightException e) {
             log.warn("⚠️  (resultat) Kunde inte klicka 'Utöka/Utöka alla' på {}: {}", page.url(), e.getMessage());
         }
@@ -980,7 +1383,6 @@ public class AtgScraperService {
         } catch (PlaywrightException ignored) {
         }
     }
-
 
     private void tryExpandSomeRowsIfMerInfoHidden(Page page) {
         int rawText = page.locator("text=Mer info").count();
@@ -997,7 +1399,7 @@ public class AtgScraperService {
                 Locator expander = row.locator("button[aria-expanded], [aria-expanded]");
                 if (expander.count() > 0) {
                     String ae = expander.first().getAttribute("aria-expanded");
-                    if (ae == null || !"true".equalsIgnoreCase(ae)) {
+                    if (!"true".equalsIgnoreCase(ae)) {
                         robustClick(expander.first(), 3_000);
                     }
                 } else {
@@ -1007,9 +1409,11 @@ public class AtgScraperService {
             }
         }
 
-        try { page.waitForTimeout(250); } catch (PlaywrightException ignored) {}
+        try {
+            page.waitForTimeout(250);
+        } catch (PlaywrightException ignored) {
+        }
     }
-
 
     private Locator findMerInfoButtons(Page page) {
         Locator byDataTestId = page.locator(
@@ -1118,8 +1522,7 @@ public class AtgScraperService {
                 log.warn("⚠️  (resultat) Kunde inte öppna/scrapa 'Mer info/Visa mer' på {} {} lopp {}: {}",
                         meetingDate, meetingTrackSlug, meetingLap, e.getMessage());
                 try {
-                    if (scopeRow != null) closePreviousStarts(page, btn, scopeRow);
-                    else closePreviousStarts(page, btn, null);
+                    closePreviousStarts(page, btn, scopeRow);
                 } catch (PlaywrightException ignored) {
                 }
             }
@@ -1128,7 +1531,10 @@ public class AtgScraperService {
     }
 
     private void closePreviousStarts(Page page, Locator merInfoBtn, Locator scopeRow) {
-        try { page.keyboard().press("Escape"); } catch (PlaywrightException ignored) {}
+        try {
+            page.keyboard().press("Escape");
+        } catch (PlaywrightException ignored) {
+        }
 
         try {
             Locator close = page.locator(
@@ -1156,13 +1562,13 @@ public class AtgScraperService {
     }
 
     private void parseAndPersistResultatFromPreviousStarts(
-                                                            String html,
-                                                            LocalDate meetingDate,
-                                                            String meetingTrackSlug,
-                                                            int meetingLap,
-                                                            String horseName,
-                                                            Integer horseNr,
-                                                            int horseIdx
+            String html,
+            LocalDate meetingDate,
+            String meetingTrackSlug,
+            int meetingLap,
+            String horseName,
+            Integer horseNr,
+            int horseIdx
     ) {
         Document doc = Jsoup.parse(html);
 
@@ -1287,7 +1693,8 @@ public class AtgScraperService {
                     if (rh.getSpar() != null) existing.setSpar(rh.getSpar());
                     if (rh.getPlacering() != null) existing.setPlacering(rh.getPlacering());
                     if (rh.getTid() != null) existing.setTid(rh.getTid());
-                    if (rh.getStartmetod() != null && !rh.getStartmetod().isBlank()) existing.setStartmetod(rh.getStartmetod());
+                    if (rh.getStartmetod() != null && !rh.getStartmetod().isBlank())
+                        existing.setStartmetod(rh.getStartmetod());
                     if (rh.getGalopp() != null && !rh.getGalopp().isBlank()) existing.setGalopp(rh.getGalopp());
                     existing.setPris(rh.getPris());
                     existing.setOdds(rh.getOdds());
@@ -1309,58 +1716,6 @@ public class AtgScraperService {
             }
         }
     }
-
-    private static String extractUnderlagFromTds(Elements tds) {
-        if (tds == null || tds.isEmpty()) return "";
-
-        String best = "";
-        Pattern paren = Pattern.compile("\\(([^)]{1,20})\\)");
-
-        for (Element td : tds) {
-            String raw = normalizeCellText(td.text());
-            if (raw.isBlank()) continue;
-
-            Matcher m = paren.matcher(raw);
-            while (m.find()) {
-                String cleaned = sanitizeUnderlag(m.group(1));
-                if (cleaned.isBlank()) continue;
-
-                if (cleaned.length() > best.length() || cleaned.length() == best.length()) {
-                    best = cleaned;
-                }
-            }
-        }
-
-        return best;
-    }
-
-    private static String sanitizeUnderlag(String raw) {
-        if (raw == null) return "";
-        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
-        if (t.isBlank()) return "";
-
-        String letters = t.replaceAll("[^a-z]", "");
-
-        boolean hasK = letters.indexOf('k') >= 0;
-        boolean hasM = letters.indexOf('m') >= 0;
-        boolean hasN = letters.indexOf('n') >= 0;
-
-        StringBuilder out = new StringBuilder(3);
-        if (hasK) out.append('k');
-        if (hasM) out.append('m');
-        if (hasN) out.append('n');
-
-        return out.toString();
-    }
-
-
-    private static String trimToMax(String s, int max) {
-        if (s == null) return "";
-        if (s.length() <= max) return s;
-        return s.substring(0, max);
-    }
-
-
 
     private long stableResultId(LocalDate meetingDate, String meetingTrackSlug, int meetingLap, String horseName, int horseIdx, int rowIdx,
                                 Integer datum, String bankod, Integer lopp) {
@@ -1410,9 +1765,6 @@ public class AtgScraperService {
 
         return null;
     }
-
-
-
 
     private TrackLap parseTrackLapText(String raw) {
         String t = normalizeCellText(raw);
@@ -1464,333 +1816,8 @@ public class AtgScraperService {
         return null;
     }
 
-
-
-    private record TrackLap(String bankod, Integer lopp) {}
-
-    private static int[] findDistSparFromTds(Elements tds) {
-        int[] out = new int[]{-1, -1, -1};
-        if (tds == null || tds.isEmpty()) return out;
-
-        Pattern p = Pattern.compile("^(\\d{3,4})\\s*:\\s*(\\d{1,2})?\\s*$");
-        for (int i = 0; i < tds.size(); i++) {
-            String txt = normalizeCellText(tds.get(i).text());
-            Matcher m = p.matcher(txt);
-            if (m.matches()) {
-                try {
-                    out[0] = Integer.parseInt(m.group(1));
-                    String g2 = m.group(2);
-                    out[1] = (g2 == null || g2.isBlank()) ? 1 : Integer.parseInt(g2);
-                    out[2] = i;
-                    return out;
-                } catch (NumberFormatException ignored) {
-                }
-            }
-        }
-
-        Pattern distOnly = Pattern.compile("^(\\d{3,4})\\s*(?:m)?\\s*$", Pattern.CASE_INSENSITIVE);
-        for (int i = 0; i < tds.size(); i++) {
-            String txt = normalizeCellText(tds.get(i).text());
-            Matcher m = distOnly.matcher(txt);
-            if (!m.matches()) continue;
-
-            int dist;
-            try {
-                dist = Integer.parseInt(m.group(1));
-            } catch (NumberFormatException e) {
-                continue;
-            }
-
-            if (dist < 600 || dist > 4000) continue;
-
-            String next = (i + 1 < tds.size()) ? normalizeCellText(tds.get(i + 1).text()) : "";
-            boolean nextLooksLikeTime = false;
-            if (!next.isBlank()) {
-                TidInfo ti = parseTidCell(next, true);
-                nextLooksLikeTime = (ti.tid() != null || ti.startmetod() != null || ti.galopp() != null
-                        || TIME_VALUE.matcher(next).find());
-            }
-            if (!nextLooksLikeTime) continue;
-
-            out[0] = dist;
-            out[1] = 1;
-            out[2] = i;
-            return out;
-        }
-
-        return out;
-    }
-
-
-    private static Integer mapPlaceringValue(String raw) {
-        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
-        if (t.isBlank()) return null;
-
-        String token = t.split("\\s+")[0].replaceAll("[^0-9\\p{L}]", "");
-        if (token.isBlank()) return null;
-
-        Matcher mr = PLACERING_WITH_R.matcher(token);
-        if (mr.matches()) token = mr.group(1);
-
-        if (token.equals("k") || token.equals("p") || token.equals("str") || token.equals("d")) return 99;
-
-        if (!token.matches("^\\d+$")) return null;
-        if (token.length() > 2) return null;
-
-        try {
-            int v = Integer.parseInt(token);
-            if (v == 0 || v == 9) return 15;
-            return v;
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-
-    private static Integer extractPlaceringFromTds(Elements tds, int distIdx) {
-        if (tds == null || tds.isEmpty()) return null;
-
-        for (int i = 0; i < tds.size(); i++) {
-            Element td = tds.get(i);
-            if (td.selectFirst("span[style*=font-weight]") != null) {
-                Integer v = mapPlaceringValue(td.text());
-                if (v != null) return v;
-            }
-        }
-
-        int max = (distIdx >= 0 ? distIdx : tds.size());
-        for (int i = 0; i < max; i++) {
-            Integer v = mapPlaceringValue(tds.get(i).text());
-            if (v != null) return v;
-        }
-
-        return null;
-    }
-
-
-    private record TidInfo(Double tid, String startmetod, String galopp) {}
-
-    private static TidInfo extractTidFromTds(Elements tds, int distIdx) {
-        if (tds == null || tds.isEmpty()) return new TidInfo(null, null, null);
-
-        if (distIdx >= 0 && distIdx + 1 < tds.size()) {
-            TidInfo info = parseTidCell(tds.get(distIdx + 1).text(), true);
-            if (info.tid != null || info.startmetod != null || info.galopp != null) return info;
-        }
-
-        for (int i = 0; i < tds.size(); i++) {
-            String raw = normalizeCellText(tds.get(i).text());
-            if (raw.contains(":")) continue;
-
-            TidInfo info = parseTidCell(raw);
-            if (info.tid == null && info.startmetod == null && info.galopp == null) continue;
-
-            if (info.tid != null && Double.compare(info.tid, 99.0) == 0) return info;
-
-            if (info.tid != null && info.startmetod == null && info.galopp == null && raw.matches(".*\\d+[\\.,]\\d{2}.*")) {
-                continue;
-            }
-
-            if (info.tid != null && info.tid >= 8.0 && info.tid <= 60.0) return info;
-
-            if (info.startmetod != null || info.galopp != null) return info;
-        }
-
-        return new TidInfo(null, null, null);
-    }
-
-    private static Integer parseFirstInt(String s) {
-        String txt = normalizeCellText(s);
-        Matcher m = Pattern.compile("(\\d{1,4})").matcher(txt);
-        if (!m.find()) return null;
-        try {
-            return Integer.parseInt(m.group(1));
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static TidInfo parseTidCell(String raw) {
-        return parseTidCell(raw, false);
-    }
-
-    private static TidInfo parseTidCell(String raw, boolean integerNoCommaMeans99) {
-        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
-        if (t.isBlank()) return new TidInfo(null, null, null);
-
-        t = t.replaceAll("[()\\s]", "");
-
-        String letters = t.replaceAll("[0-9\\.,]", "");
-
-        String startmetod = letters.contains("a") ? "a" : null;
-        String galopp = letters.contains("g") ? "g" : null;
-
-        boolean force99 = letters.contains("dist")
-                || letters.contains("kub")
-                || letters.contains("vmk")
-                || letters.contains("u")
-                || letters.contains("d");
-
-        Double time = null;
-        Matcher m = TIME_VALUE.matcher(t);
-        if (m.find()) {
-            try {
-                time = Double.parseDouble(m.group(1) + "." + m.group(2));
-            } catch (NumberFormatException ignored) {
-            }
-        }
-
-        if (force99) return new TidInfo(99.0, startmetod, galopp);
-
-        if (time == null) {
-            boolean hasSep = t.contains(",") || t.contains(".");
-            String digits = t.replaceAll("\\D+", "");
-            if (!hasSep && !digits.isBlank() && digits.length() <= 2) {
-                if (integerNoCommaMeans99 || !letters.isBlank()) {
-                    return new TidInfo(99.0, startmetod, galopp);
-                }
-            }
-        }
-
-        return new TidInfo(time, startmetod, galopp);
-    }
-
-    private static String normalizeCellText(String s) {
-        if (s == null) return "";
-        return s.replace('\u00A0', ' ').trim();
-    }
-
-    private static String normalizeHorseNameSimple(String raw) {
-        String s = normalizeCellText(raw);
-        if (s.isBlank()) return "";
-        s = s.replace("'", "").replace("’", "");
-        s = s.toUpperCase(Locale.ROOT);
-        return trimToMax(s, 50);
-    }
-
-    private static final int RESULT_BANKOD_MAX_LEN = 20;
-
-    private static String toResultBankod(String trackLike) {
-        if (trackLike == null || trackLike.isBlank()) return DEFAULT_BANKOD;
-
-        String key = trackKey(trackLike);
-        String code = FULLNAME_TO_BANKODE.get(key);
-        if (code != null && !code.isBlank()) return code;
-
-        String fallback = trimToMax(key, RESULT_BANKOD_MAX_LEN);
-        if (fallback.isBlank()) return DEFAULT_BANKOD;
-
-        log.warn("⚠️  Okänd bana '{}' (key='{}'), använder '{}' som bankod i RESULT-tabellen",
-                trackLike, key, fallback);
-        return fallback;
-    }
-
-    private static Integer extractPrisFromTds(Elements tds, int distIdx) {
-        if (tds == null || tds.isEmpty()) return 0;
-
-        int start = (distIdx >= 0 ? Math.min(distIdx + 2, tds.size()) : 0);
-        Integer last = null;
-
-        for (int i = start; i < tds.size(); i++) {
-            String raw = normalizeCellText(tds.get(i).text());
-            Integer v = parsePrisToInt(raw);
-            if (v != null) last = v;
-        }
-
-        return last != null ? last : 0;
-    }
-
-    private static Integer parsePrisToInt(String raw) {
-        String t = normalizeCellText(raw);
-        if (t.isBlank()) return null;
-
-        t = t.replaceAll("[()]", "").trim();
-
-        Matcher ma = PRIS_APOSTROPHE.matcher(t);
-        if (ma.matches()) {
-            try { return Integer.parseInt(ma.group(1)) * 1000; } catch (NumberFormatException e) { return null; }
-        }
-
-        Matcher mk = PRIS_K.matcher(t);
-        if (mk.matches()) {
-            try { return Integer.parseInt(mk.group(1)) * 1000; } catch (NumberFormatException e) { return null; }
-        }
-
-        if (t.contains(",") && !t.contains(" ")) return null;
-
-        Matcher mt = PRIS_THOUSANDS.matcher(t);
-        if (mt.matches()) {
-            String digits = mt.group(1).replaceAll("[\\s\\u00A0\\.]", "");
-            try { return Integer.parseInt(digits); } catch (NumberFormatException e) { return null; }
-        }
-
-        return null;
-    }
-
-    private static Integer extractOddsFromTds(Elements tds, int distIdx) {
-        if (tds == null || tds.isEmpty()) return 999;
-
-        int timeIdx = (distIdx >= 0 ? distIdx + 1 : -1);
-        int start = (timeIdx >= 0 ? Math.min(timeIdx + 1, tds.size()) : 0);
-
-        Integer last = null;
-        for (int i = start; i < tds.size(); i++) {
-            String raw = normalizeCellText(tds.get(i).text());
-            if (raw.isBlank()) continue;
-
-            if (raw.contains("'") || raw.contains("’")) continue;
-
-            Integer v = parseOddsToInt(raw);
-            if (v != null) last = v;
-        }
-
-        return last != null ? last : 999;
-    }
-
-    private static Integer parseOddsToInt(String raw) {
-        String t = normalizeCellText(raw).replaceAll("[()]", "").trim();
-        if (t.isBlank()) return null;
-
-        if (t.codePoints().anyMatch(Character::isLetter)) return null;
-
-        Matcher m = ODDS_NUMBER.matcher(t);
-        if (!m.matches()) return null;
-
-        String a = m.group(1);
-        String b = m.group(2);
-
-        try {
-            BigDecimal val = new BigDecimal(a + "." + (b == null ? "0" : b));
-            BigDecimal scaled = val.multiply(BigDecimal.TEN);
-            int rounded = scaled.setScale(0, RoundingMode.HALF_UP).intValue();
-
-            if (rounded < 0 || rounded > 9999) return null;
-            return rounded;
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private static int findHeaderIndex(Element container, Pattern headerRx) {
-        if (container == null) return -1;
-        Element head = container.selectFirst("thead");
-        if (head == null) return -1;
-
-        Elements hs = head.select("th, td");
-        for (int i = 0; i < hs.size(); i++) {
-            String txt = normalizeCellText(hs.get(i).text());
-            if (headerRx.matcher(txt).find()) return i;
-        }
-        return -1;
-    }
-
-    private static String textAt(Elements tds, int idx) {
-        if (tds == null || idx < 0 || idx >= tds.size()) return "";
-        return normalizeCellText(tds.get(idx).text());
-    }
-
     private ResultHorse buildOrUpdateResultOddsForFuture(
-                                                         LocalDate date, String bankod, int lap, String horseName, String vOdds
+            LocalDate date, String bankod, int lap, String horseName, String vOdds
     ) {
         Integer parsedOdds = parseOddsToInt(vOdds);
         if (parsedOdds == null) return null;
@@ -1813,5 +1840,11 @@ public class AtgScraperService {
         }
 
         return null;
+    }
+
+    private record TrackLap(String bankod, Integer lopp) {
+    }
+
+    private record TidInfo(Double tid, String startmetod, String galopp) {
     }
 }

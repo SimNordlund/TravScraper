@@ -23,8 +23,8 @@ public class ScraperProperties {
 
     //300 är februari ish. Skannat ifrån 2025-02-17
     //skrapar danska och norska 90 dagar till att börja med
-    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(90);
-    private LocalDate endDateResultatPopup = LocalDate.now().minusDays(0);
+    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(300);
+    private LocalDate endDateResultatPopup = LocalDate.now().minusDays(210);
 
 /*    private LocalDate startDateResults = LocalDate.now().minusDays(1);
     private LocalDate endDateResults = LocalDate.now().minusDays(0);*/
