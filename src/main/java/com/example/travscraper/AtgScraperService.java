@@ -1266,8 +1266,8 @@ public class AtgScraperService {
                     .orElse(end);
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-                log.info("📆  Scraping RESULTAT (popup) {}", date);
-                //List<String> tracks = tracksFor(date);
+                log.info("📆  Scraping ATG HISTORY (popup) {}", date);
+                List<String> tracks = tracksFor(date);
                 List<String> hardcodedTracks = List.of(
                         "bjerke",
                         "orkla",
@@ -1292,9 +1292,9 @@ public class AtgScraperService {
                         "skive",
                         "alborg"
                 );
-                //    for (String track : tracks) {
-                //        processDateTrackResultatPopups(date, track);
-                //    }
+                    for (String track : tracks) {
+                        processDateTrackResultatPopups(date, track);
+                    }
 
                 for (String track : hardcodedTracks) {
                     processDateTrackResultatPopups(date, track);
@@ -1410,7 +1410,7 @@ public class AtgScraperService {
         }
 
         if (expand.count() <= 0) {
-            log.info("🟦 (resultat) Hittade ingen 'Utöka/Utöka alla' på {}", page.url());
+            log.info("🟦 (atg history) Hittade ingen 'Utöka/Utöka alla' på {}", page.url());
             return;
         }
 
@@ -1508,7 +1508,7 @@ public class AtgScraperService {
         }
 
         int toClick = Math.min(total, RESULTAT_MAX_HORSES_PER_LAP);
-        log.info("🟩 (resultat) Hittade {} 'Mer info/Visa mer' på {} {} lopp {} (klickar {})",
+        log.info("🟩 (atg history) Hittade {} 'Mer info/Visa mer' på {} {} lopp {} (klickar {})",
                 total, meetingDate, meetingTrackSlug, meetingLap, toClick);
 
         for (int i = 0; i < toClick; i++) {
@@ -1632,7 +1632,7 @@ public class AtgScraperService {
         }
 
         if (container == null) {
-            log.warn("⚠️  (resultat) Hittade ingen previous-starts container på {} {} lopp {}",
+            log.warn("⚠️  (atg history) Hittade ingen previous-starts container på {} {} lopp {}",
                     meetingDate, meetingTrackSlug, meetingLap);
             return;
         }

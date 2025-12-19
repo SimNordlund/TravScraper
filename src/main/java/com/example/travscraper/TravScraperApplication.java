@@ -26,10 +26,10 @@ public class TravScraperApplication implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        //service.scrapeResultatPopupsOnly();
+        service.scrapeResultatPopupsOnly();
         service.scrapeFuture();
-        //service.scrape();
-        //service.scrapeForeign();
-        //horseWarningService.refreshWarnings(8);
+       // service.scrape();
+       // service.scrapeForeign();
+       // horseWarningService.refreshWarnings(8);
     }
 }
