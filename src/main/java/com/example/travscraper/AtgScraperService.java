@@ -320,6 +320,44 @@ public class AtgScraperService {
         return null;
     }
 
+    private static Integer parsePlaceringRawDigit1to9(String raw) {
+        String t = normalizeCellText(raw).toLowerCase(Locale.ROOT);
+        if (t.isBlank()) return null;
+
+        String token = t.split("\\s+")[0].replaceAll("[^0-9\\p{L}]", "");
+        if (token.isBlank()) return null;
+
+        Matcher mr = PLACERING_WITH_R.matcher(token);
+        if (mr.matches()) token = mr.group(1);
+
+        if (token.matches("^[1-9]$")) {
+            return Integer.parseInt(token);
+        }
+
+        return null;
+    }
+
+    private static Integer extractPlaceringRawDigit1to9FromTds(Elements tds, int distIdx) {
+        if (tds == null || tds.isEmpty()) return null;
+
+        for (int i = 0; i < tds.size(); i++) {
+            Element td = tds.get(i);
+            if (td.selectFirst("span[style*=font-weight]") != null) {
+                Integer v = parsePlaceringRawDigit1to9(td.text());
+                if (v != null) return v;
+            }
+        }
+
+        int max = (distIdx >= 0 ? distIdx : tds.size());
+        for (int i = 0; i < max; i++) {
+            Integer v = parsePlaceringRawDigit1to9(tds.get(i).text());
+            if (v != null) return v;
+        }
+
+        return null;
+    }
+
+
     private static TidInfo extractTidFromTds(Elements tds, int distIdx) {
         if (tds == null || tds.isEmpty()) return new TidInfo(null, null, null);
 
@@ -1633,20 +1671,25 @@ public class AtgScraperService {
         if (container == null) {
             container = doc.selectFirst(
                     "div[class*=\"PreviousStarts-styles--tableWrapper\"], " +
-                            "div[class*=\"previousStarts-styles--tableWrapper\"], " +
-                            "div[class*=\"PreviousStarts\"][class*=\"tableWrapper\"], " +
-                            "div[class*=\"previousStarts\"][class*=\"tableWrapper\"]"
+                            "div[class*=\"previousStarts\"]"
             );
         }
 
         if (container == null) {
-            log.warn("⚠️  (atg history) Hittade ingen previous-starts container på {} {} lopp {}",
-                    meetingDate, meetingTrackSlug, meetingLap);
+            log.warn("⚠️  (resultat) Hittade inte previous-starts-container för häst='{}' på {} {} lopp {}",
+                    horseName, meetingDate, meetingTrackSlug, meetingLap);
             return;
         }
 
-        Elements rows = container.select("tbody tr");
-        if (rows.isEmpty()) rows = container.select("tr");
+        Element table = container.selectFirst("table");
+        if (table == null) {
+            log.warn("⚠️  (resultat) Hittade ingen table i previous-starts för häst='{}' på {} {} lopp {}",
+                    horseName, meetingDate, meetingTrackSlug, meetingLap);
+            return;
+        }
+
+        Elements rows = table.select("tbody tr");
+        if (rows.isEmpty()) rows = table.select("tr");
 
         if (rows.isEmpty()) {
             log.warn("⚠️  (resultat) Inga rader i previous-starts på {} {} lopp {}",
@@ -1680,7 +1723,13 @@ public class AtgScraperService {
             String startmetod = tidInfo.startmetod();
             String galopp = tidInfo.galopp();
 
-            Integer pris = extractPrisFromTds(tds, distIdx);
+            Integer prisRaw = extractPrisFromTds(tds, distIdx);
+            Integer rawPlaceringForPrize = extractPlaceringRawDigit1to9FromTds(tds, distIdx);
+            Integer pris = 0;
+            if (rawPlaceringForPrize != null && prisRaw != null && prisRaw > 0) {
+                pris = prisRaw / rawPlaceringForPrize;
+            }
+
             Integer odds = extractOddsFromTds(tds, distIdx);
 
             String underlag = extractUnderlagFromTds(tds);
@@ -1713,7 +1762,9 @@ public class AtgScraperService {
             if (startmetod != null && !startmetod.isBlank()) rh.setStartmetod(startmetod);
             if (galopp != null && !galopp.isBlank()) rh.setGalopp(galopp);
 
-            rh.setPris(pris);
+            if (rh.getId() == null || rh.getPris() == null) {
+                rh.setPris(pris);
+            }
             rh.setOdds(odds);
 
             if (!underlag.isBlank()) rh.setUnderlag(underlag);
@@ -1753,7 +1804,10 @@ public class AtgScraperService {
                     if (rh.getStartmetod() != null && !rh.getStartmetod().isBlank())
                         existing.setStartmetod(rh.getStartmetod());
                     if (rh.getGalopp() != null && !rh.getGalopp().isBlank()) existing.setGalopp(rh.getGalopp());
-                    existing.setPris(rh.getPris());
+
+                    if (existing.getId() == null || existing.getPris() == null) {
+                        existing.setPris(rh.getPris());
+                    }
                     existing.setOdds(rh.getOdds());
 
                     if (rh.getUnderlag() != null && !rh.getUnderlag().isBlank()) existing.setUnderlag(rh.getUnderlag());
@@ -1773,6 +1827,8 @@ public class AtgScraperService {
             }
         }
     }
+
+
 
     private long stableResultId(LocalDate meetingDate, String meetingTrackSlug, int meetingLap, String horseName, int horseIdx, int rowIdx,
                                 Integer datum, String bankod, Integer lopp) {
@@ -1896,7 +1952,6 @@ public class AtgScraperService {
             Integer currentOdds = rh.getOdds();
 
             if (isEj) {
-
                 if (currentOdds == null || currentOdds != 99) {
                     rh.setOdds(99);
                     return rh;
@@ -1935,7 +1990,6 @@ public class AtgScraperService {
                 .odds(parsedOdds)
                 .build();
     }
-
 
     private record TrackLap(String bankod, Integer lopp) {
     }
