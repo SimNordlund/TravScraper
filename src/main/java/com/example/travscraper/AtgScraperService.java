@@ -1211,10 +1211,18 @@ public class AtgScraperService {
                             if (existing.isPresent()) {
                                 ResultHorse e = existing.get();
                                 Integer currentOdds = e.getOdds();
-                                if (currentOdds == null || currentOdds == 999) {
+                                boolean isEjOdds = (rh.getOdds() != null && rh.getOdds() == 99);
+
+                                if (isEjOdds) {
+                                    if (currentOdds == null || currentOdds != 99) {
+                                        e.setOdds(99);
+                                        resultRepo.save(e);
+                                    }
+                                } else if (currentOdds == null || currentOdds == 999) {
                                     e.setOdds(rh.getOdds());
                                     resultRepo.save(e);
                                 }
+
                             } else {
                                 log.warn("⚠️  (future) Kunde inte hitta rad efter krock datum={} bankod={} lopp={} namn={}",
                                         rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn());
@@ -1867,7 +1875,12 @@ public class AtgScraperService {
 
     private ResultHorse buildOrUpdateResultOddsForFuture(LocalDate date, String bankod, int lap, String horseName,
                                                          String startNumber, String vOdds, boolean allowCreateIfMissing) {
-        Integer parsedOdds = parseOddsToInt(vOdds);
+
+        String vOddsNorm = normalizeCellText(vOdds);
+        String vOddsUpper = vOddsNorm.toUpperCase(Locale.ROOT).replace(".", "").trim();
+        boolean isEj = "EJ".equals(vOddsUpper);
+
+        Integer parsedOdds = isEj ? 99 : parseOddsToInt(vOddsNorm);
         if (parsedOdds == null) return null;
 
         int datum = toYyyymmdd(date);
@@ -1881,6 +1894,16 @@ public class AtgScraperService {
             ResultHorse rh = existingOpt.get();
 
             Integer currentOdds = rh.getOdds();
+
+            if (isEj) {
+
+                if (currentOdds == null || currentOdds != 99) {
+                    rh.setOdds(99);
+                    return rh;
+                }
+                return null;
+            }
+
             if (currentOdds == null || currentOdds == 999) {
                 rh.setOdds(parsedOdds);
                 return rh;
