@@ -128,8 +128,78 @@ public class AtgScraperService {
             Map.entry("nykobing", "Ny"),
             Map.entry("odense", "Od"),
             Map.entry("skive", "Se"),
-            Map.entry("alborg", "Ål")
-    );
+            Map.entry("alborg", "Ål"),
+
+            Map.entry("broparktrav", "Bv"),
+
+            Map.entry("abo", "Åo"),
+            Map.entry("forssa", "Fo"),
+            Map.entry("harma", "Hä"),
+            Map.entry("joensuu", "Jo"),
+            Map.entry("jyvaskyla", "Jy"),
+            Map.entry("kaustinen", "Ka"),
+            Map.entry("kouvola", "Ko"),
+            Map.entry("kuopio", "Ku"),
+            Map.entry("lahti", "La"),
+            Map.entry("lappeenranta", "Lp"),
+            Map.entry("loviisa", "Lo"),
+            Map.entry("mariehamn", "Ma"),
+            Map.entry("mikkeli", "Mk"),
+            Map.entry("pori", "Po"),
+            Map.entry("rovaniemi", "Rv"),
+            Map.entry("seinajoki", "Si"),
+            Map.entry("tammerfors", "Ta"),
+            Map.entry("tornea", "To"),
+            Map.entry("uleaborg", "Ul"),
+            Map.entry("vermo", "Ve"),
+            Map.entry("ylivieska", "Yl"),
+            Map.entry("paikallisravit", "Pk"),
+
+            Map.entry("norge", "N"),
+            Map.entry("finland", "Fi"),
+            Map.entry("frankrike", "Fr"),
+            Map.entry("estland", "Ee"),
+            Map.entry("italien", "I"),
+            Map.entry("nederlanderna", "Nl"),
+            Map.entry("belgien", "Be"),
+            Map.entry("australien", "Au"),
+            Map.entry("nya zeeland", "Nz"),
+            Map.entry("osterrike", "Öe"),
+            Map.entry("schweiz", "Sz"),
+            Map.entry("slovenien", "Sl"),
+            Map.entry("spanien", "Sp"),
+            Map.entry("tjeckien", "Cz"),
+            Map.entry("ungern", "Un"),
+            Map.entry("tyskland", "Ty"),
+            Map.entry("usa 1", "Us"),
+            Map.entry("litauen", "Lt"),
+            Map.entry("danmark", "Dk"),
+
+            Map.entry("yonkers", "Yr"),
+            Map.entry("wolvega", "Wo"),
+            Map.entry("wien", "W"),
+            Map.entry("vincennes", "V"),
+            Map.entry("turin", "Tu"),
+            Map.entry("neapel", "Ne"),
+            Map.entry("munchen", "Mu"),
+            Map.entry("monchen gladbach", "Mg"),
+            Map.entry("milano", "Mi"),
+            Map.entry("hamburg bahrenfeld", "Hb"),
+            Map.entry("hamburgbahrenfeld", "Hb"),
+            Map.entry("gelsenkirchen", "Ge"),
+            Map.entry("florens", "Fl"),
+            Map.entry("enghien", "En"),
+            Map.entry("duindigt", "Du"),
+            Map.entry("cesena", "Ce"),
+            Map.entry("cagnes sur mer", "Cm"),
+            Map.entry("cagnessurmer", "Cm"),
+            Map.entry("bologna", "Bl"),
+            Map.entry("berlin karlshorst", "Ck"),
+            Map.entry("berlin", "Bn"),
+            Map.entry("rom", "Rm"),
+            Map.entry("meadowlands", "Me"),
+            Map.entry("dinslaken", "Dl")
+            );
     private static final Map<String, String> BANKODE_TO_SLUG;
     private static final String DEFAULT_BANKOD = "XX";
     private static final int RESULT_BANKOD_MAX_LEN = 20;
@@ -757,7 +827,8 @@ public class AtgScraperService {
                         "nykobing",
                         "odense",
                         "skive",
-                        "alborg"
+                        "alborg",
+                        "mariehamn"
                 );
 
                 for (String track : tracks) {
@@ -1150,7 +1221,8 @@ public class AtgScraperService {
                 "nykobing",
                 "odense",
                 "skive",
-                "alborg"
+                "alborg",
+                "mariehamn"
         );
 
         for (Element tr : rows) {
@@ -1344,7 +1416,8 @@ public class AtgScraperService {
                         "nykobing",
                         "odense",
                         "skive",
-                        "alborg"
+                        "alborg",
+                        "mariehamn"
                 );
                     for (String track : tracks) {
                         processDateTrackResultatPopups(date, track);
