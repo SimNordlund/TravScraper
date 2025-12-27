@@ -208,11 +208,15 @@ public class AtgScraperService {
         boolean hasK = letters.indexOf('k') >= 0;
         boolean hasM = letters.indexOf('m') >= 0;
         boolean hasN = letters.indexOf('n') >= 0;
+        boolean hasT = letters.indexOf('t') >= 0;
+        boolean hasV = letters.indexOf('v') >= 0;
 
         StringBuilder out = new StringBuilder(3);
         if (hasK) out.append('k');
         if (hasM) out.append('m');
         if (hasN) out.append('n');
+        if (hasT) out.append('t');
+        if (hasV) out.append('v');
 
         return out.toString();
     }
