@@ -37,13 +37,14 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.travscraper.helpers.TrackHelper.FULLNAME_TO_BANKODE;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AtgScraperService {
 
     private static final DateTimeFormatter URL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final DateTimeFormatter YYMMDD_FORMAT = DateTimeFormatter.ofPattern("yyMMdd");
     private static final Pattern PLACERING_WITH_R = Pattern.compile("^(\\d{1,2})r$");
     private static final Pattern ISO_DATE = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$");
     private static final Pattern HAS_LETTER = Pattern.compile(".*\\p{L}.*");
@@ -85,121 +86,6 @@ public class AtgScraperService {
                     "div[class*=\"previousStarts\"][class*=\"tableWrapper\"] tbody tr, " +
                     "[data-test-id=\"result-date\"], [data-test-id=\"result-date\"] span";
     private static final Pattern TIME_VALUE = Pattern.compile("(?:\\d+\\.)?(\\d{1,2})[\\.,](\\d{1,2})");
-    private static final Map<String, String> FULLNAME_TO_BANKODE = Map.ofEntries(
-            Map.entry("arvika", "Ar"), Map.entry("axevalla", "Ax"),
-            Map.entry("bergsaker", "B"), Map.entry("boden", "Bo"),
-            Map.entry("bollnas", "Bs"), Map.entry("dannero", "D"),
-            Map.entry("dala jarna", "Dj"), Map.entry("eskilstuna", "E"),
-            Map.entry("jagersro", "J"), Map.entry("farjestad", "F"),
-            Map.entry("gavle", "G"), Map.entry("goteborg trav", "Gt"),
-            Map.entry("hagmyren", "H"), Map.entry("halmstad", "Hd"),
-            Map.entry("hoting", "Hg"), Map.entry("karlshamn", "Kh"),
-            Map.entry("kalmar", "Kr"), Map.entry("lindesberg", "L"),
-            Map.entry("lycksele", "Ly"), Map.entry("mantorp", "Mp"),
-            Map.entry("oviken", "Ov"), Map.entry("romme", "Ro"),
-            Map.entry("rattvik", "Rä"), Map.entry("solvalla", "S"),
-            Map.entry("skelleftea", "Sk"), Map.entry("solanget", "Sä"),
-            Map.entry("tingsryd", "Ti"), Map.entry("taby trav", "Tt"),
-            Map.entry("umaker", "U"), Map.entry("vemdalen", "Vd"),
-            Map.entry("vaggeryd", "Vg"), Map.entry("visby", "Vi"),
-            Map.entry("aby", "Å"), Map.entry("amal", "Åm"),
-            Map.entry("arjang", "År"), Map.entry("orebro", "Ö"),
-            Map.entry("ostersund", "Ös"),
-
-            Map.entry("bjerke", "Bj"),
-            Map.entry("bodo", "Bd"),
-            Map.entry("biri", "Br"),
-            Map.entry("bergen", "Bt"),
-            Map.entry("drammen", "Dr"),
-            Map.entry("forus", "Fs"),
-            Map.entry("harstad", "Ha"),
-            Map.entry("haugaland", "Ht"),
-            Map.entry("jarlsberg", "Ja"),
-            Map.entry("klosterskogen", "Kl"),
-            Map.entry("leangen", "Le"),
-            Map.entry("momarken", "Mo"),
-            Map.entry("sorlandet", "Sö"),
-            Map.entry("orkla", "Oa"),
-
-            Map.entry("arhus", "Aa"),
-            Map.entry("billund", "Bi"),
-            Map.entry("bornholm", "Bm"),
-            Map.entry("charlottenlund", "Ch"),
-            Map.entry("nykobing", "Ny"),
-            Map.entry("odense", "Od"),
-            Map.entry("skive", "Se"),
-            Map.entry("alborg", "Ål"),
-
-            Map.entry("broparktrav", "Bv"),
-
-            Map.entry("abo", "Åo"),
-            Map.entry("forssa", "Fo"),
-            Map.entry("harma", "Hä"),
-            Map.entry("joensuu", "Jo"),
-            Map.entry("jyvaskyla", "Jy"),
-            Map.entry("kaustinen", "Ka"),
-            Map.entry("kouvola", "Ko"),
-            Map.entry("kuopio", "Ku"),
-            Map.entry("lahti", "La"),
-            Map.entry("lappeenranta", "Lp"),
-            Map.entry("loviisa", "Lo"),
-            Map.entry("mariehamn", "Ma"),
-            Map.entry("mikkeli", "Mk"),
-            Map.entry("pori", "Po"),
-            Map.entry("rovaniemi", "Rv"),
-            Map.entry("seinajoki", "Si"),
-            Map.entry("tammerfors", "Ta"),
-            Map.entry("tornea", "To"),
-            Map.entry("uleaborg", "Ul"),
-            Map.entry("vermo", "Ve"),
-            Map.entry("ylivieska", "Yl"),
-            Map.entry("paikallisravit", "Pk"),
-
-            Map.entry("norge", "N"),
-            Map.entry("finland", "Fi"),
-            Map.entry("frankrike", "Fr"),
-            Map.entry("estland", "Ee"),
-            Map.entry("italien", "I"),
-            Map.entry("nederlanderna", "Nl"),
-            Map.entry("belgien", "Be"),
-            Map.entry("australien", "Au"),
-            Map.entry("nya zeeland", "Nz"),
-            Map.entry("osterrike", "Öe"),
-            Map.entry("schweiz", "Sz"),
-            Map.entry("slovenien", "Sl"),
-            Map.entry("spanien", "Sp"),
-            Map.entry("tjeckien", "Cz"),
-            Map.entry("ungern", "Un"),
-            Map.entry("tyskland", "Ty"),
-            Map.entry("usa 1", "Us"),
-            Map.entry("litauen", "Lt"),
-            Map.entry("danmark", "Dk"),
-
-            Map.entry("yonkers", "Yr"),
-            Map.entry("wolvega", "Wo"),
-            Map.entry("wien", "W"),
-            Map.entry("vincennes", "V"),
-            Map.entry("turin", "Tu"),
-            Map.entry("neapel", "Ne"),
-            Map.entry("munchen", "Mu"),
-            Map.entry("monchen gladbach", "Mg"),
-            Map.entry("milano", "Mi"),
-            Map.entry("hamburg bahrenfeld", "Hb"),
-            Map.entry("hamburgbahrenfeld", "Hb"),
-            Map.entry("gelsenkirchen", "Ge"),
-            Map.entry("florens", "Fl"),
-            Map.entry("enghien", "En"),
-            Map.entry("duindigt", "Du"),
-            Map.entry("cesena", "Ce"),
-            Map.entry("cagnes sur mer", "Cm"),
-            Map.entry("cagnessurmer", "Cm"),
-            Map.entry("bologna", "Bl"),
-            Map.entry("berlin karlshorst", "Ck"),
-            Map.entry("berlin", "Bn"),
-            Map.entry("rom", "Rm"),
-            Map.entry("meadowlands", "Me"),
-            Map.entry("dinslaken", "Dl")
-            );
     private static final Map<String, String> BANKODE_TO_SLUG;
     private static final String DEFAULT_BANKOD = "XX";
     private static final int RESULT_BANKOD_MAX_LEN = 20;
@@ -435,7 +321,6 @@ public class AtgScraperService {
         return null;
     }
 
-
     private static TidInfo extractTidFromTds(Elements tds, int distIdx) {
         if (tds == null || tds.isEmpty()) return new TidInfo(null, null, null);
 
@@ -463,17 +348,6 @@ public class AtgScraperService {
         }
 
         return new TidInfo(null, null, null);
-    }
-
-    private static Integer parseFirstInt(String s) {
-        String txt = normalizeCellText(s);
-        Matcher m = Pattern.compile("(\\d{1,4})").matcher(txt);
-        if (!m.find()) return null;
-        try {
-            return Integer.parseInt(m.group(1));
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 
     private static TidInfo parseTidCell(String raw) {
@@ -1571,7 +1445,6 @@ public class AtgScraperService {
         for (int i = 0; i < n; i++) {
             Locator row = rows.nth(i);
             try {
-                // Försök klicka en expander-knapp om den finns, annars klicka hela raden
                 Locator expander = row.locator("button[aria-expanded], [aria-expanded]");
                 if (expander.count() > 0) {
                     String ae = expander.first().getAttribute("aria-expanded");
@@ -1909,17 +1782,6 @@ public class AtgScraperService {
         }
     }
 
-
-
-    private long stableResultId(LocalDate meetingDate, String meetingTrackSlug, int meetingLap, String horseName, int horseIdx, int rowIdx,
-                                Integer datum, String bankod, Integer lopp) {
-        String key = meetingDate + "|" + meetingTrackSlug + "|" + meetingLap + "|" +
-                (horseName == null ? "" : horseName) + "|" + horseIdx + "|" + rowIdx + "|" +
-                datum + "|" + bankod + "|" + lopp;
-        UUID uuid = UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8));
-        return uuid.getMostSignificantBits() & Long.MAX_VALUE;
-    }
-
     private Integer extractDatumFromResultRow(Element tr) {
         Element dateEl = tr.selectFirst("[data-test-id=result-date]");
         if (dateEl != null) {
@@ -2012,7 +1874,6 @@ public class AtgScraperService {
 
     private ResultHorse buildOrUpdateResultOddsForFuture(LocalDate date, String bankod, int lap, String horseName,
                                                          String startNumber, String vOdds, boolean allowCreateIfMissing) {
-
         String vOddsNorm = normalizeCellText(vOdds);
         String vOddsUpper = vOddsNorm.toUpperCase(Locale.ROOT).replace(".", "").trim();
         boolean isEj = "EJ".equals(vOddsUpper);
