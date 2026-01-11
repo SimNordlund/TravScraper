@@ -1101,6 +1101,7 @@ public class AtgScraperService {
 
         for (Element tr : rows) {
             String nr = extractStartNumber(tr);
+            nr = nr.replaceAll("\\D+", "");
             if (nr.isBlank()) {
                 log.debug("⏭️  Skipping row without start number {} {} lap {}", date, track, lap);
                 continue;
@@ -1111,15 +1112,17 @@ public class AtgScraperService {
             }
 
             Element split = tr.selectFirst("[startlist-export-id^=startlist-cell-horse-split-export]");
-            String name;
-            if (split != null) {
-                String[] parts = split.text().trim().split("\\s+", 2);
-                name = (parts.length > 1) ? parts[1] : (parts.length > 0 ? parts[0] : "");
-            } else {
-                name = tr.text();
-            }
+            String rawName = (split != null) ? normalizeCellText(split.text()) : "";
+            if (rawName.isBlank()) rawName = normalizeCellText(tr.text());
 
-            String normalizedName = normalizeHorseNameSimple(name);
+            rawName = rawName.replaceFirst("^\\s*" + Pattern.quote(nr) + "\\s+", "");
+            rawName = rawName.replaceFirst("^\\s*\\d{1,2}\\s+", "");
+
+            String normalizedName = normalizeHorseNameSimple(rawName);
+            if (normalizedName.isBlank()) {
+                log.debug("⏭️  Skipping row without horse name {} {} lap {} nr {}", date, track, lap, nr);
+                continue;
+            }
 
             Element vOddEl = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
             String vOdds = vOddEl != null ? vOddEl.text().trim() : "";
@@ -1195,8 +1198,6 @@ public class AtgScraperService {
                     try {
                         resultRepo.save(rh);
                     } catch (DataIntegrityViolationException ignored) {
-                        // Om vi försökte INSERT:a en ny rad men den hann skapas av någon annan,
-                        // gör en lookup och uppdatera odds om den fortfarande är 999/null.
                         try {
                             Optional<ResultHorse> existing = resultRepo
                                     .findByDatumAndBankodAndLoppAndNamn(rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn());
@@ -1232,16 +1233,24 @@ public class AtgScraperService {
     }
 
     private String extractStartNumber(Element tr) {
-        Element numBtn = tr.selectFirst("button[data-test-start-number]");
+        Element numBtn = tr.selectFirst("button[data-test-start-number], [data-test-start-number]");
         if (numBtn != null) {
             String n = numBtn.attr("data-test-start-number");
             if (n != null && !n.isBlank()) return n.trim();
         }
+
         Element split = tr.selectFirst("[startlist-export-id^=startlist-cell-horse-split-export]");
         if (split != null) {
-            String[] parts = split.text().trim().split("\\s+", 2);
-            if (parts.length > 0 && !parts[0].isBlank()) return parts[0].trim();
+            for (Element sp : split.select("span")) {
+                String d = normalizeCellText(sp.text()).replaceAll("\\D+", "");
+                if (!d.isBlank()) return d;
+            }
+
+            String splitTxt = normalizeCellText(split.text());
+            Matcher m = Pattern.compile("^\\s*(\\d{1,2})\\b").matcher(splitTxt);
+            if (m.find()) return m.group(1);
         }
+
         Element nrText = tr.selectFirst("[data-test-id=horse-start-number], [class*=startNumber]");
         if (nrText != null) {
             String n = nrText.text().replaceAll("\\D+", "");
@@ -1249,6 +1258,7 @@ public class AtgScraperService {
         }
         return "";
     }
+
 
     public void runResultatPopupScrape() {
         scrapeResultatPopupsOnly();
@@ -1494,7 +1504,6 @@ public class AtgScraperService {
         clickExpandAllIfPresent(page);
         tryExpandSomeRowsIfMerInfoHidden(page);
 
-
         int textCount = page.locator("text=Mer info").count();
         int dataTestIdCount = page.locator("[data-test-id*=\"previous-starts\"][data-test-id*=\"show-more\"]").count();
 
@@ -1518,34 +1527,26 @@ public class AtgScraperService {
             Locator scopeRow = null;
 
             try {
-                Locator tr = btn.locator("xpath=ancestor::tr[1]");
-                scopeRow = tr;
+                Locator btnRow = btn.locator("xpath=ancestor::tr[1]");
+                scopeRow = btnRow;
 
-                Locator split = tr.locator("[startlist-export-id^='startlist-cell-horse-split-export']");
+                Locator horseRow = btnRow;
+
+                Locator split = horseRow.locator("[startlist-export-id^='startlist-cell-horse-split-export']");
                 if (split.count() == 0) {
-                    Locator prev = tr.locator("xpath=preceding-sibling::tr[1]");
+                    Locator prev = horseRow.locator("xpath=preceding-sibling::tr[1]");
                     if (prev.count() > 0) {
-                        split = prev.locator("[startlist-export-id^='startlist-cell-horse-split-export']");
-                    }
-                }
-
-                if (split.count() > 0) {
-                    String splitTxt = split.first().innerText().trim();
-                    String[] parts = splitTxt.split("\\s+", 2);
-
-
-                    if (parts.length > 0) {
-                        String nrStr = parts[0].replaceAll("\\D+", "");
-                        if (!nrStr.isBlank()) {
-                            try {
-                                horseNr = Integer.parseInt(nrStr);
-                            } catch (NumberFormatException ignored) {
-                            }
+                        Locator prevSplit = prev.locator("[startlist-export-id^='startlist-cell-horse-split-export']");
+                        if (prevSplit.count() > 0) {
+                            horseRow = prev;
+                            split = prevSplit;
                         }
                     }
-                    horseName = (parts.length > 1) ? parts[1].trim() : splitTxt;
-                    horseName = normalizeHorseNameSimple(horseName);
                 }
+
+                HorseMeta meta = extractHorseMetaFromHorseRow(horseRow, split);
+                horseName = meta.name();
+                horseNr = meta.nr();
 
                 robustClick(btn, 15_000);
 
@@ -1563,7 +1564,9 @@ public class AtgScraperService {
 
                 String fragment = waitScope.evaluate("el => el.outerHTML").toString();
 
-                parseAndPersistResultatFromPreviousStarts(fragment, meetingDate, meetingTrackSlug, meetingLap, horseName, horseNr, i);
+                parseAndPersistResultatFromPreviousStarts(
+                        fragment, meetingDate, meetingTrackSlug, meetingLap, horseName, horseNr, i
+                );
 
                 closePreviousStarts(page, btn, waitScope);
 
@@ -1576,8 +1579,83 @@ public class AtgScraperService {
                 }
             }
         }
-
     }
+
+    private HorseMeta extractHorseMetaFromHorseRow(Locator horseRow, Locator split) {
+        Integer nr = null;
+        String nameRaw = "";
+
+        try {
+            Locator startBtn = horseRow.locator("button[data-test-start-number], [data-test-start-number]");
+            if (startBtn.count() > 0) {
+                String attr = startBtn.first().getAttribute("data-test-start-number");
+                String digits = (attr != null) ? attr.replaceAll("\\D+", "") : "";
+                if (!digits.isBlank()) {
+                    nr = Integer.parseInt(digits);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (nr == null && split != null && split.count() > 0) {
+            try {
+                String tc = split.first().textContent();
+                nr = parseLeadingStartNumberFromTextContent(tc);
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (split != null && split.count() > 0) {
+            try {
+                nameRaw = split.first().innerText();
+            } catch (Exception ignored) {
+                try {
+                    nameRaw = split.first().textContent();
+                } catch (Exception ignored2) {
+                    nameRaw = "";
+                }
+            }
+        }
+
+        nameRaw = normalizeCellText(nameRaw).replaceAll("\\s+", " ").trim();
+        if (nameRaw.isBlank()) {
+            try {
+                nameRaw = normalizeCellText(horseRow.innerText()).replaceAll("\\s+", " ").trim();
+            } catch (Exception ignored) {
+                nameRaw = "";
+            }
+        }
+
+        if (nr != null) {
+            nameRaw = nameRaw.replaceFirst("^\\s*" + Pattern.quote(String.valueOf(nr)) + "\\s*", "");
+        }
+        nameRaw = nameRaw.replaceFirst("^\\s*\\d{1,2}\\s+", "");
+
+        String normalizedName = normalizeHorseNameSimple(nameRaw);
+        return new HorseMeta(nr, normalizedName);
+    }
+
+
+    private Integer parseLeadingStartNumberFromTextContent(String textContent) {
+        if (textContent == null) return null;
+        String tc = normalizeCellText(textContent).replaceAll("\\s+", "");
+        if (tc.isBlank()) return null;
+
+        Matcher m = Pattern.compile("^([0-9]{1,2})(?=\\D)").matcher(tc);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        return null;
+    }
+
+
+    private record HorseMeta(Integer nr, String name) {
+    }
+
 
     private void closePreviousStarts(Page page, Locator merInfoBtn, Locator scopeRow) {
         try {

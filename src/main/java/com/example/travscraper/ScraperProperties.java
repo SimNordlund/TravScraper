@@ -15,14 +15,12 @@ public class ScraperProperties {
     //private LocalDate startDateFuture = LocalDate.now().minusDays(1);
     //private LocalDate endDateFuture = LocalDate.now().minusDays(0);
 
-    private LocalDate startDateResults = LocalDate.now().minusDays(2);
+    private LocalDate startDateResults = LocalDate.now().minusDays(5);
     private LocalDate endDateResults = LocalDate.now().minusDays(1);
 
-    private LocalDate startDateForeign = LocalDate.now().minusDays(2);
+    private LocalDate startDateForeign = LocalDate.now().minusDays(5);
     private LocalDate endDateResultForeign = LocalDate.now().minusDays(1);
 
-    //300 är februari ish. Skannat ifrån 2025-02-17
-    //skrapar danska och norska 90 dagar till att börja med
     //private LocalDate startDateResultatPopup = LocalDate.now().minusDays(1);
     //private LocalDate endDateResultatPopup = LocalDate.now().minusDays(0);
 
@@ -30,15 +28,14 @@ public class ScraperProperties {
     // ------------------------------------------------------------------------ //
     // ------------------------------------------------------------------------ //
 
-    //private LocalDate startDateResults = LocalDate.now().minusDays(1);
-    //private LocalDate endDateResults = LocalDate.now().minusDays(0);
+ /*   private LocalDate startDateFuture = LocalDate.now().minusDays(400);
+    private LocalDate endDateFuture = LocalDate.now().minusDays(358);*/
+    //private LocalDate startDateFuture = LocalDate.now().minusDays(0);
+    private LocalDate startDateFuture = LocalDate.now().plusDays(1);
+    private LocalDate endDateFuture = LocalDate.now().plusDays(3);
 
-    private LocalDate startDateFuture = LocalDate.now().minusDays(1);
-    private LocalDate endDateFuture = LocalDate.now().plusDays(1);
-    
-/*    private LocalDate startDateForeign = LocalDate.now().minusDays(1);
-    private LocalDate endDateResultForeign = LocalDate.now().minusDays(0);*/
-
-    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(1);
-    private LocalDate endDateResultatPopup = LocalDate.now().plusDays(1);
+/*    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(400);
+    private LocalDate endDateResultatPopup = LocalDate.now().minusDays(358);*/
+    private LocalDate startDateResultatPopup = LocalDate.now().plusDays(1);
+    private LocalDate endDateResultatPopup = LocalDate.now().plusDays(3);
 }
