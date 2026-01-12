@@ -44,6 +44,12 @@ import static com.example.travscraper.helpers.TrackHelper.FULLNAME_TO_BANKODE;
 @RequiredArgsConstructor
 public class AtgScraperService {
 
+    private static final Pattern BYTE_AV_BANA_TILL = Pattern.compile( //Changed!
+            "Byte\\s+av\\s+bana\\s+till\\s+([^:]+)",
+            Pattern.CASE_INSENSITIVE
+    ); //Changed!
+
+
     private static final DateTimeFormatter URL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final Pattern PLACERING_WITH_R = Pattern.compile("^(\\d{1,2})r$");
     private static final Pattern ISO_DATE = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$");
@@ -927,16 +933,18 @@ public class AtgScraperService {
                     continue;
                 }
 
-                if (!isCorrectTrack(page, track, date)) return;
-                if (!isCorrectLap(page, lap, track, date)) {
-                    log.info("🔸 Lap {} missing on {} {} (future), continuing", lap, date, track);
+                String effectiveTrack = resolveEffectiveTrackSlug(page, track); //Changed!
+
+                if (!isCorrectTrack(page, effectiveTrack, date)) return; //Changed!
+                if (!isCorrectLap(page, lap, effectiveTrack, date)) { //Changed!
+                    log.info("🔸 Lap {} missing on {} {} (future), continuing", lap, date, effectiveTrack); //Changed!
                     if (++consecutiveMisses >= 2) break;
                     continue;
                 }
 
                 consecutiveMisses = 0;
 
-                parseAndPersistFuture(page.content(), date, track, lap);
+                parseAndPersistFuture(page.content(), date, effectiveTrack, lap); //Changed!
 
                 try {
                     Thread.sleep(600 + (int) (Math.random() * 1200));
@@ -953,6 +961,7 @@ public class AtgScraperService {
         }
     }
 
+
     private boolean isCancelledRace(Page page) {
         return Jsoup.parse(page.content())
                 .selectFirst("span[class*=cancelledRace], span:matchesOwn(Inställt\\,?\\s+insatser)") != null;
@@ -962,13 +971,15 @@ public class AtgScraperService {
         Element active = Jsoup.parse(page.content())
                 .selectFirst("span[data-test-id^=calendar-menu-track-][data-test-active=true]");
         if (active == null) return true;
-        String slug = slugify(active.attr("data-test-id").substring("calendar-menu-track-".length()));
-        if (!slug.equals(expected.toLowerCase())) {
+
+        String slug = trackKey(active.attr("data-test-id").substring("calendar-menu-track-".length())); //Changed!
+        if (!slug.equals(trackKey(expected))) { //Changed!
             log.info("↪️  {} not present on {} (page shows {}), skipping whole day/track", expected, date, slug);
             return false;
         }
         return true;
     }
+
 
     private boolean isCorrectLap(Page page, int expected, String track, LocalDate date) {
         Document doc = Jsoup.parse(page.content());
@@ -1360,11 +1371,13 @@ public class AtgScraperService {
                     continue;
                 }
 
-                if (!isCorrectTrack(page, track, date)) return;
+                String effectiveTrack = resolveEffectiveTrackSlug(page, track); //Changed!
+
+                if (!isCorrectTrack(page, effectiveTrack, date)) return; //Changed!
 
                 consecutiveMisses = 0;
 
-                scrapeResultatFromPopups(page, date, track, lap);
+                scrapeResultatFromPopups(page, date, effectiveTrack, lap); //Changed!
 
             } catch (PlaywrightException e) {
                 log.warn("⚠️  (resultat) Playwright-fel på {}: {}", url, e.getMessage());
@@ -1376,6 +1389,7 @@ public class AtgScraperService {
             }
         }
     }
+
 
     private void dismissCookiesIfPresent(Page page) {
         try {
@@ -1949,6 +1963,51 @@ public class AtgScraperService {
 
         return null;
     }
+
+    private String extractTrackSwitchTargetFromAlert(Page page) { //Changed!
+        try {
+            Locator strong = page.locator("[data-test-id=\"game-alerts\"] strong")
+                    .filter(new Locator.FilterOptions().setHasText(
+                            Pattern.compile("Byte\\s+av\\s+bana\\s+till", Pattern.CASE_INSENSITIVE))); //Changed!
+
+            if (strong.count() == 0) return null; //Changed!
+
+            String txt = normalizeCellText(strong.first().innerText()); //Changed!
+            Matcher m = BYTE_AV_BANA_TILL.matcher(txt); //Changed!
+            if (!m.find()) return null; //Changed!
+
+            String target = normalizeCellText(m.group(1)); //Changed!
+            return target.isBlank() ? null : target; //Changed!
+        } catch (PlaywrightException ignored) {
+            return null; //Changed!
+        }
+    }
+
+    private String resolveEffectiveTrackSlug(Page page, String requestedTrackSlug) { //Changed!
+        String targetName = extractTrackSwitchTargetFromAlert(page); //Changed!
+        if (targetName == null) return requestedTrackSlug; //Changed!
+
+        String bankod = toKnownBankodOrNull(targetName); //Changed!
+        if (bankod == null) { //Changed!
+            log.warn("⚠️  Byte av bana hittades men okänd bana '{}' på {}, behåller '{}'",
+                    targetName, page.url(), requestedTrackSlug); //Changed!
+            return requestedTrackSlug; //Changed!
+        }
+
+        String overrideSlug = BANKODE_TO_SLUG.getOrDefault(bankod, trackKey(targetName)); //Changed!
+
+        if (!trackKey(requestedTrackSlug).equals(trackKey(overrideSlug))) { //Changed!
+            log.info("🔁 Byte av bana på {}: '{}' -> '{}' ({} -> {})",
+                    page.url(),
+                    requestedTrackSlug,
+                    overrideSlug,
+                    toKnownBankodOrNull(requestedTrackSlug),
+                    bankod); //Changed!
+        }
+
+        return overrideSlug; //Changed!
+    }
+
 
     private ResultHorse buildOrUpdateResultOddsForFuture(LocalDate date, String bankod, int lap, String horseName,
                                                          String startNumber, String vOdds, boolean allowCreateIfMissing) {
