@@ -44,10 +44,10 @@ import static com.example.travscraper.helpers.TrackHelper.FULLNAME_TO_BANKODE;
 @RequiredArgsConstructor
 public class AtgScraperService {
 
-    private static final Pattern BYTE_AV_BANA_TILL = Pattern.compile( //Changed!
+    private static final Pattern BYTE_AV_BANA_TILL = Pattern.compile(
             "Byte\\s+av\\s+bana\\s+till\\s+([^:]+)",
             Pattern.CASE_INSENSITIVE
-    ); //Changed!
+    );
 
 
     private static final DateTimeFormatter URL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -933,18 +933,18 @@ public class AtgScraperService {
                     continue;
                 }
 
-                String effectiveTrack = resolveEffectiveTrackSlug(page, track); //Changed!
+                String effectiveTrack = resolveEffectiveTrackSlug(page, track);
 
-                if (!isCorrectTrack(page, effectiveTrack, date)) return; //Changed!
-                if (!isCorrectLap(page, lap, effectiveTrack, date)) { //Changed!
-                    log.info("🔸 Lap {} missing on {} {} (future), continuing", lap, date, effectiveTrack); //Changed!
+                if (!isCorrectTrack(page, effectiveTrack, date)) return;
+                if (!isCorrectLap(page, lap, effectiveTrack, date)) {
+                    log.info("🔸 Lap {} missing on {} {} (future), continuing", lap, date, effectiveTrack);
                     if (++consecutiveMisses >= 2) break;
                     continue;
                 }
 
                 consecutiveMisses = 0;
 
-                parseAndPersistFuture(page.content(), date, effectiveTrack, lap); //Changed!
+                parseAndPersistFuture(page.content(), date, effectiveTrack, lap);
 
                 try {
                     Thread.sleep(600 + (int) (Math.random() * 1200));
@@ -972,8 +972,8 @@ public class AtgScraperService {
                 .selectFirst("span[data-test-id^=calendar-menu-track-][data-test-active=true]");
         if (active == null) return true;
 
-        String slug = trackKey(active.attr("data-test-id").substring("calendar-menu-track-".length())); //Changed!
-        if (!slug.equals(trackKey(expected))) { //Changed!
+        String slug = trackKey(active.attr("data-test-id").substring("calendar-menu-track-".length()));
+        if (!slug.equals(trackKey(expected))) {
             log.info("↪️  {} not present on {} (page shows {}), skipping whole day/track", expected, date, slug);
             return false;
         }
@@ -1371,13 +1371,13 @@ public class AtgScraperService {
                     continue;
                 }
 
-                String effectiveTrack = resolveEffectiveTrackSlug(page, track); //Changed!
+                String effectiveTrack = resolveEffectiveTrackSlug(page, track);
 
-                if (!isCorrectTrack(page, effectiveTrack, date)) return; //Changed!
+                if (!isCorrectTrack(page, effectiveTrack, date)) return;
 
                 consecutiveMisses = 0;
 
-                scrapeResultatFromPopups(page, date, effectiveTrack, lap); //Changed!
+                scrapeResultatFromPopups(page, date, effectiveTrack, lap);
 
             } catch (PlaywrightException e) {
                 log.warn("⚠️  (resultat) Playwright-fel på {}: {}", url, e.getMessage());
@@ -1964,48 +1964,48 @@ public class AtgScraperService {
         return null;
     }
 
-    private String extractTrackSwitchTargetFromAlert(Page page) { //Changed!
+    private String extractTrackSwitchTargetFromAlert(Page page) {
         try {
             Locator strong = page.locator("[data-test-id=\"game-alerts\"] strong")
                     .filter(new Locator.FilterOptions().setHasText(
-                            Pattern.compile("Byte\\s+av\\s+bana\\s+till", Pattern.CASE_INSENSITIVE))); //Changed!
+                            Pattern.compile("Byte\\s+av\\s+bana\\s+till", Pattern.CASE_INSENSITIVE)));
 
-            if (strong.count() == 0) return null; //Changed!
+            if (strong.count() == 0) return null;
 
-            String txt = normalizeCellText(strong.first().innerText()); //Changed!
-            Matcher m = BYTE_AV_BANA_TILL.matcher(txt); //Changed!
-            if (!m.find()) return null; //Changed!
+            String txt = normalizeCellText(strong.first().innerText());
+            Matcher m = BYTE_AV_BANA_TILL.matcher(txt);
+            if (!m.find()) return null;
 
-            String target = normalizeCellText(m.group(1)); //Changed!
-            return target.isBlank() ? null : target; //Changed!
+            String target = normalizeCellText(m.group(1));
+            return target.isBlank() ? null : target;
         } catch (PlaywrightException ignored) {
-            return null; //Changed!
+            return null;
         }
     }
 
-    private String resolveEffectiveTrackSlug(Page page, String requestedTrackSlug) { //Changed!
-        String targetName = extractTrackSwitchTargetFromAlert(page); //Changed!
-        if (targetName == null) return requestedTrackSlug; //Changed!
+    private String resolveEffectiveTrackSlug(Page page, String requestedTrackSlug) {
+        String targetName = extractTrackSwitchTargetFromAlert(page);
+        if (targetName == null) return requestedTrackSlug;
 
-        String bankod = toKnownBankodOrNull(targetName); //Changed!
-        if (bankod == null) { //Changed!
+        String bankod = toKnownBankodOrNull(targetName);
+        if (bankod == null) {
             log.warn("⚠️  Byte av bana hittades men okänd bana '{}' på {}, behåller '{}'",
-                    targetName, page.url(), requestedTrackSlug); //Changed!
-            return requestedTrackSlug; //Changed!
+                    targetName, page.url(), requestedTrackSlug);
+            return requestedTrackSlug;
         }
 
-        String overrideSlug = BANKODE_TO_SLUG.getOrDefault(bankod, trackKey(targetName)); //Changed!
+        String overrideSlug = BANKODE_TO_SLUG.getOrDefault(bankod, trackKey(targetName));
 
-        if (!trackKey(requestedTrackSlug).equals(trackKey(overrideSlug))) { //Changed!
+        if (!trackKey(requestedTrackSlug).equals(trackKey(overrideSlug))) {
             log.info("🔁 Byte av bana på {}: '{}' -> '{}' ({} -> {})",
                     page.url(),
                     requestedTrackSlug,
                     overrideSlug,
                     toKnownBankodOrNull(requestedTrackSlug),
-                    bankod); //Changed!
+                    bankod);
         }
 
-        return overrideSlug; //Changed!
+        return overrideSlug;
     }
 
 
