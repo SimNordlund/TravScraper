@@ -1770,11 +1770,7 @@ public class AtgScraperService {
             String galopp = tidInfo.galopp();
 
             Integer prisRaw = extractPrisFromTds(tds, distIdx);
-            Integer rawPlaceringForPrize = extractPlaceringRawDigit1to9FromTds(tds, distIdx);
-            Integer pris = 0;
-            if (rawPlaceringForPrize != null && prisRaw != null && prisRaw > 0) {
-                pris = prisRaw / rawPlaceringForPrize;
-            }
+            Integer pris = (prisRaw != null ? prisRaw : 0);
 
             Integer odds = extractOddsFromTds(tds, distIdx);
 
@@ -1808,9 +1804,10 @@ public class AtgScraperService {
             if (startmetod != null && !startmetod.isBlank()) rh.setStartmetod(startmetod);
             if (galopp != null && !galopp.isBlank()) rh.setGalopp(galopp);
 
-            if (rh.getId() == null || rh.getPris() == null) {
-                rh.setPris(pris);
-            }
+            Integer existingPris = rh.getPris(); //Changed!
+            if (existingPris == null || !Objects.equals(existingPris, pris)) { //Changed!
+                rh.setPris(pris); //Changed!
+            } //Changed
             rh.setOdds(odds);
 
             if (!underlag.isBlank()) rh.setUnderlag(underlag);
@@ -1851,9 +1848,12 @@ public class AtgScraperService {
                         existing.setStartmetod(rh.getStartmetod());
                     if (rh.getGalopp() != null && !rh.getGalopp().isBlank()) existing.setGalopp(rh.getGalopp());
 
-                    if (existing.getId() == null || existing.getPris() == null) {
-                        existing.setPris(rh.getPris());
-                    }
+                    Integer newPris = rh.getPris(); //Changed!
+                    Integer oldPris = existing.getPris(); //Changed!
+                    if (oldPris == null || !Objects.equals(oldPris, newPris)) { //Changed!
+                        existing.setPris(newPris); //Changed!
+                    } //Changed!
+
                     existing.setOdds(rh.getOdds());
 
                     if (rh.getUnderlag() != null && !rh.getUnderlag().isBlank()) existing.setUnderlag(rh.getUnderlag());
