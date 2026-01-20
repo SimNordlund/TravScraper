@@ -1804,10 +1804,10 @@ public class AtgScraperService {
             if (startmetod != null && !startmetod.isBlank()) rh.setStartmetod(startmetod);
             if (galopp != null && !galopp.isBlank()) rh.setGalopp(galopp);
 
-            Integer existingPris = rh.getPris(); //Changed!
-            if (existingPris == null || !Objects.equals(existingPris, pris)) { //Changed!
-                rh.setPris(pris); //Changed!
-            } //Changed
+            Integer existingPris = rh.getPris();
+            if (existingPris == null || !Objects.equals(existingPris, pris)) {
+                rh.setPris(pris);
+            }
             rh.setOdds(odds);
 
             if (!underlag.isBlank()) rh.setUnderlag(underlag);
@@ -1848,11 +1848,11 @@ public class AtgScraperService {
                         existing.setStartmetod(rh.getStartmetod());
                     if (rh.getGalopp() != null && !rh.getGalopp().isBlank()) existing.setGalopp(rh.getGalopp());
 
-                    Integer newPris = rh.getPris(); //Changed!
-                    Integer oldPris = existing.getPris(); //Changed!
-                    if (oldPris == null || !Objects.equals(oldPris, newPris)) { //Changed!
-                        existing.setPris(newPris); //Changed!
-                    } //Changed!
+                    Integer newPris = rh.getPris();
+                    Integer oldPris = existing.getPris();
+                    if (oldPris == null || !Objects.equals(oldPris, newPris)) {
+                        existing.setPris(newPris);
+                    }
 
                     existing.setOdds(rh.getOdds());
 
