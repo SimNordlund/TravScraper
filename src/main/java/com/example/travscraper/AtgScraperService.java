@@ -27,7 +27,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -48,7 +47,6 @@ public class AtgScraperService {
             "Byte\\s+av\\s+bana\\s+till\\s+([^:]+)",
             Pattern.CASE_INSENSITIVE
     );
-
 
     private static final DateTimeFormatter URL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final Pattern PLACERING_WITH_R = Pattern.compile("^(\\d{1,2})r$");
@@ -302,26 +300,6 @@ public class AtgScraperService {
 
         if (token.matches("^[1-9]$")) {
             return Integer.parseInt(token);
-        }
-
-        return null;
-    }
-
-    private static Integer extractPlaceringRawDigit1to9FromTds(Elements tds, int distIdx) {
-        if (tds == null || tds.isEmpty()) return null;
-
-        for (int i = 0; i < tds.size(); i++) {
-            Element td = tds.get(i);
-            if (td.selectFirst("span[style*=font-weight]") != null) {
-                Integer v = parsePlaceringRawDigit1to9(td.text());
-                if (v != null) return v;
-            }
-        }
-
-        int max = (distIdx >= 0 ? distIdx : tds.size());
-        for (int i = 0; i < max; i++) {
-            Integer v = parsePlaceringRawDigit1to9(tds.get(i).text());
-            if (v != null) return v;
         }
 
         return null;
@@ -1270,11 +1248,6 @@ public class AtgScraperService {
         return "";
     }
 
-
-    public void runResultatPopupScrape() {
-        scrapeResultatPopupsOnly();
-    }
-
     public void scrapeResultatPopupsOnly() {
         if (!lock.tryLock()) {
             log.warn("⏳ Previous scrape still running – skipping (resultat popups)");
@@ -1389,7 +1362,6 @@ public class AtgScraperService {
             }
         }
     }
-
 
     private void dismissCookiesIfPresent(Page page) {
         try {
@@ -1649,7 +1621,6 @@ public class AtgScraperService {
         return new HorseMeta(nr, normalizedName);
     }
 
-
     private Integer parseLeadingStartNumberFromTextContent(String textContent) {
         if (textContent == null) return null;
         String tc = normalizeCellText(textContent).replaceAll("\\s+", "");
@@ -1665,7 +1636,6 @@ public class AtgScraperService {
 
         return null;
     }
-
 
     private record HorseMeta(Integer nr, String name) {
     }
@@ -2007,7 +1977,6 @@ public class AtgScraperService {
 
         return overrideSlug;
     }
-
 
     private ResultHorse buildOrUpdateResultOddsForFuture(LocalDate date, String bankod, int lap, String horseName,
                                                          String startNumber, String vOdds, boolean allowCreateIfMissing) {
