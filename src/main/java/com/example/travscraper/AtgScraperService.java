@@ -600,7 +600,7 @@ public class AtgScraperService {
         if (playwright != null) playwright.close();
     }
 
-    @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
+   // @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
     public void scrape() {
         if (!lock.tryLock()) {
             log.warn("⏳ Previous scrape still running – skipping");
@@ -624,7 +624,7 @@ public class AtgScraperService {
         }
     }
 
-    @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
+   // @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
     public void scrapeForeign() {
         if (!lock.tryLock()) {
             log.warn("⏳ Previous scrape still running – skipping");
@@ -648,7 +648,7 @@ public class AtgScraperService {
         }
     }
 
-    @Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
+    //@Scheduled(cron = "0 55 23 * * *", zone = "Europe/Stockholm")
     public void scrapeFuture() {
         if (!lock.tryLock()) {
             log.warn("⏳ Previous scrape still running – skipping (future)");
