@@ -1,4 +1,4 @@
-package com.example.travscraper.scrapers; //Changed!
+package com.example.travscraper.scrapers;
 
 import com.example.travscraper.ScraperProperties;
 import com.example.travscraper.entity.ResultHorse;
@@ -36,7 +36,7 @@ import static com.example.travscraper.helpers.TrackHelper.FULLNAME_TO_BANKODE;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class PopUpScraper { //Changed!
+public class PopUpScraper {
 
     private static final Pattern BYTE_AV_BANA_TILL = Pattern.compile(
             "Byte\\s+av\\s+bana\\s+till\\s+([^:]+)",
@@ -111,9 +111,9 @@ public class PopUpScraper { //Changed!
         BANKODE_TO_SLUG = Collections.unmodifiableMap(m);
     }
 
-    private final ScraperProperties props; //Changed!
-    private final StartListHorseRepo startListRepo; //Changed!
-    private final ResultHorseRepo resultRepo; //Changed!
+    private final ScraperProperties props;
+    private final StartListHorseRepo startListRepo;
+    private final ResultHorseRepo resultRepo;
 
     private final ReentrantLock lock = new ReentrantLock();
     private Playwright playwright;
@@ -128,7 +128,7 @@ public class PopUpScraper { //Changed!
                         .setHeadless(true)
                         .setArgs(List.of("--disable-blink-features=AutomationControlled"))
         );
-        log.info("🖥️  Headless browser launched (PopUpScraper)"); //Changed!
+        log.info("🖥️  Headless browser launched (PopUpScraper)");
     }
 
     @PreDestroy
