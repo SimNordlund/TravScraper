@@ -689,18 +689,18 @@ public class AtgScraperService {
                         "mariehamn"
                 );
 
-                for (String track : tracks) {
-                    processDateTrackFuture(date, track);
-                }
+                Set<String> allTracks = new LinkedHashSet<>(tracks); //Changed!
+                allTracks.addAll(hardcodedTracks); //Changed!
 
-                for (String track : hardcodedTracks) {
-                    processDateTrackFuture(date, track);
-                }
+                for (String track : allTracks) { //Changed!
+                    processDateTrackFuture(date, track); //Changed!
+                } //Changed!
             }
         } finally {
             lock.unlock();
         }
     }
+
 
     private void ensureContext() {
         if (ctx != null) return;
@@ -720,7 +720,6 @@ public class AtgScraperService {
 
         ctx.addInitScript(""" 
                   () => {
-                     försök minska anti-bot-detektering
                     try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch(e) {}
                     try { Object.defineProperty(navigator, 'languages', { get: () => ['sv-SE','sv','en-US','en'] }); } catch(e) {}
                     try { Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] }); } catch(e) {}
@@ -911,9 +910,12 @@ public class AtgScraperService {
                     continue;
                 }
 
-                String effectiveTrack = resolveEffectiveTrackSlug(page, track);
+                String effectiveTrack = resolveEffectiveTrackSlugStrict(page, date, lap, track); //Changed!
+                if (effectiveTrack == null) { //Changed!
+                    if (++consecutiveMisses >= 2) break; //Changed!
+                    continue; //Changed!
+                } //Changed!
 
-                if (!isCorrectTrack(page, effectiveTrack, date)) return;
                 if (!isCorrectLap(page, lap, effectiveTrack, date)) {
                     log.info("🔸 Lap {} missing on {} {} (future), continuing", lap, date, effectiveTrack);
                     if (++consecutiveMisses >= 2) break;
@@ -938,6 +940,7 @@ public class AtgScraperService {
             }
         }
     }
+
 
 
     private boolean isCancelledRace(Page page) {
@@ -2044,4 +2047,78 @@ public class AtgScraperService {
 
     private record TidInfo(Double tid, String startmetod, String galopp) {
     }
+
+    private static final Pattern WINNARE_URL_PATTERN = Pattern.compile( //Changed!
+            "^https?://www\\.atg\\.se/spel/(\\d{4}-\\d{2}-\\d{2})/vinnare/([^/]+)/lopp/(\\d+)(?:[/?#].*)?$" //Changed!
+    ); //Changed!
+
+    private record VinnareRoute(LocalDate date, String trackSlug, int lap) {} //Changed!
+
+    private String waitForStableUrl(Page page, int maxWaitMs, int stepMs) { //Changed!
+        String last = page.url(); //Changed!
+        int stableFor = 0; //Changed!
+        for (int waited = 0; waited < maxWaitMs; waited += stepMs) { //Changed!
+            try { //Changed!
+                page.waitForTimeout(stepMs); //Changed!
+            } catch (PlaywrightException ignored) { //Changed!
+                break; //Changed!
+            } //Changed!
+            String now = page.url(); //Changed!
+            if (Objects.equals(now, last)) { //Changed!
+                stableFor += stepMs; //Changed!
+            } else { //Changed!
+                stableFor = 0; //Changed!
+            } //Changed!
+            last = now; //Changed!
+            if (stableFor >= 800) break; //Changed!
+        } //Changed!
+        return last; //Changed!
+    } //Changed!
+
+    private VinnareRoute parseVinnareRoute(String url) { //Changed!
+        if (url == null || url.isBlank()) return null; //Changed!
+        Matcher m = WINNARE_URL_PATTERN.matcher(url); //Changed!
+        if (!m.find()) return null; //Changed!
+        try { //Changed!
+            LocalDate d = LocalDate.parse(m.group(1), URL_DATE_FORMAT); //Changed!
+            String slug = m.group(2).trim(); //Changed!
+            int lap = Integer.parseInt(m.group(3)); //Changed!
+            return new VinnareRoute(d, slug, lap); //Changed!
+        } catch (Exception ignored) { //Changed!
+            return null; //Changed!
+        } //Changed!
+    } //Changed!
+
+    private String resolveEffectiveTrackSlugStrict(Page page, LocalDate expectedDate, int expectedLap, String requestedTrackSlug) { //Changed!
+        String stableUrl = waitForStableUrl(page, 3000, 250); //Changed!
+        VinnareRoute route = parseVinnareRoute(stableUrl); //Changed!
+
+        if (route == null) { //Changed!
+            log.info("↪️  Unexpected URL '{}' for {} {}, skipping", stableUrl, expectedDate, requestedTrackSlug); //Changed!
+            return null; //Changed!
+        } //Changed!
+
+        if (!expectedDate.equals(route.date()) || route.lap() != expectedLap) { //Changed!
+            log.info("↪️  URL mismatch for {} {} lap {} -> landed at {} (date={}, lap={}), skipping", //Changed!
+                    expectedDate, requestedTrackSlug, expectedLap, stableUrl, route.date(), route.lap()); //Changed!
+            return null; //Changed!
+        } //Changed!
+
+        String requestedKey = trackKey(requestedTrackSlug); //Changed!
+        String landedKey = trackKey(route.trackSlug()); //Changed!
+        if (requestedKey.equals(landedKey)) return requestedTrackSlug; //Changed!
+
+        String switchedByAlert = resolveEffectiveTrackSlug(page, requestedTrackSlug); //Changed!
+        String switchedKey = trackKey(switchedByAlert); //Changed!
+        if (!switchedKey.isBlank() && switchedKey.equals(landedKey)) { //Changed!
+            log.info("🔁 Accepted explicit track switch {} -> {} on {}", requestedTrackSlug, switchedByAlert, stableUrl); //Changed!
+            return switchedByAlert; //Changed!
+        } //Changed!
+
+        log.info("↪️  Requested '{}' but landed on '{}' ({}) without explicit switch, skipping", //Changed!
+                requestedTrackSlug, route.trackSlug(), stableUrl); //Changed!
+        return null; //Changed!
+    } //Changed!
+
+
 }

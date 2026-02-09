@@ -15,10 +15,10 @@ public class ScraperProperties {
     //private LocalDate startDateFuture = LocalDate.now().minusDays(1);
     //private LocalDate endDateFuture = LocalDate.now().minusDays(0);
 
-    private LocalDate startDateResults = LocalDate.now().minusDays(5);
+    private LocalDate startDateResults = LocalDate.now().minusDays(30);
     private LocalDate endDateResults = LocalDate.now().minusDays(1);
 
-    private LocalDate startDateForeign = LocalDate.now().minusDays(5);
+    private LocalDate startDateForeign = LocalDate.now().minusDays(30);
     private LocalDate endDateResultForeign = LocalDate.now().minusDays(1);
 
     //private LocalDate startDateResultatPopup = LocalDate.now().minusDays(1);
@@ -33,8 +33,8 @@ public class ScraperProperties {
 /*    private LocalDate startDateFuture = LocalDate.now().minusDays(241); // 241
     private LocalDate endDateFuture = LocalDate.now().minusDays(197); //197*/
 
-    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(1);
-    private LocalDate endDateResultatPopup = LocalDate.now().plusDays(1);
+    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(4);
+    private LocalDate endDateResultatPopup = LocalDate.now().plusDays(2);
 /*    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(200); //240 Råkade köra denna xd
     private LocalDate endDateResultatPopup = LocalDate.now().minusDays(96); //197*/
 }

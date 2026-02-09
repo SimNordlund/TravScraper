@@ -37,6 +37,11 @@ import static com.example.travscraper.helpers.TrackHelper.FULLNAME_TO_BANKODE;
 @RequiredArgsConstructor
 public class FutureScraper {
 
+    //LOGIK BEHÖVER UPPDATERAS DÅ DEN BUGGAR ATM!!!!!!!!!!!!!!!!!!!!!!!
+    //LOGIK BEHÖVER UPPDATERAS DÅ DEN BUGGAR ATM!!!!!!!!!!!!!!!!!!!!!!!
+    //LOGIK BEHÖVER UPPDATERAS DÅ DEN BUGGAR ATM!!!!!!!!!!!!!!!!!!!!!!!
+    //LOGIK BEHÖVER UPPDATERAS DÅ DEN BUGGAR ATM!!!!!!!!!!!!!!!!!!!!!!!
+
     private static final Pattern BYTE_AV_BANA_TILL = Pattern.compile(
             "Byte\\s+av\\s+bana\\s+till\\s+([^:]+)",
             Pattern.CASE_INSENSITIVE
