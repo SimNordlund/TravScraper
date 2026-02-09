@@ -23,7 +23,6 @@ public class ScraperProperties {
 
     //private LocalDate startDateResultatPopup = LocalDate.now().minusDays(1);
     //private LocalDate endDateResultatPopup = LocalDate.now().minusDays(0);
-
     // ------------------------------------------------------------------------ //
     // ------------------------------------------------------------------------ //
     // ------------------------------------------------------------------------ //
