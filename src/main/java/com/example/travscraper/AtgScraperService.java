@@ -1290,13 +1290,13 @@ public class AtgScraperService {
                         "alborg",
                         "mariehamn"
                 );
-                    for (String track : tracks) {
-                        processDateTrackResultatPopups(date, track);
-                    }
 
-                for (String track : hardcodedTracks) {
-                    processDateTrackResultatPopups(date, track);
-                }
+                Set<String> allTracks = new LinkedHashSet<>(tracks); //Changed!
+                allTracks.addAll(hardcodedTracks); //Changed!
+
+                for (String track : allTracks) { //Changed!
+                    processDateTrackResultatPopups(date, track); //Changed!
+                } //Changed!
             }
         } finally {
             lock.unlock();
@@ -1324,13 +1324,6 @@ public class AtgScraperService {
                     continue;
                 }
 
-                String finalUrl = page.url();
-                if (finalUrl.contains("/lopp/") && !finalUrl.contains("/lopp/" + lap)) {
-                    log.info("↪️  (resultat) lopp {} redirectade till {}, hoppar", lap, finalUrl);
-                    if (++consecutiveMisses >= 2) break;
-                    continue;
-                }
-
                 page.waitForSelector(
                         "button:has-text(\"Tillåt alla\"):visible, " +
                                 "button:has-text(\"Avvisa\"):visible, " +
@@ -1347,7 +1340,11 @@ public class AtgScraperService {
                     continue;
                 }
 
-                String effectiveTrack = resolveEffectiveTrackSlug(page, track);
+                String effectiveTrack = resolveEffectiveTrackSlugStrict(page, date, lap, track); //Changed!
+                if (effectiveTrack == null) { //Changed!
+                    if (++consecutiveMisses >= 2) break; //Changed!
+                    continue; //Changed!
+                } //Changed!
 
                 if (!isCorrectTrack(page, effectiveTrack, date)) return;
 
@@ -1365,6 +1362,7 @@ public class AtgScraperService {
             }
         }
     }
+
 
     private void dismissCookiesIfPresent(Page page) {
         try {
