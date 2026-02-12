@@ -689,12 +689,12 @@ public class AtgScraperService {
                         "mariehamn"
                 );
 
-                Set<String> allTracks = new LinkedHashSet<>(tracks); //Changed!
-                allTracks.addAll(hardcodedTracks); //Changed!
+                Set<String> allTracks = new LinkedHashSet<>(tracks);
+                allTracks.addAll(hardcodedTracks);
 
-                for (String track : allTracks) { //Changed!
-                    processDateTrackFuture(date, track); //Changed!
-                } //Changed!
+                for (String track : allTracks) {
+                    processDateTrackFuture(date, track);
+                }
             }
         } finally {
             lock.unlock();
@@ -910,11 +910,11 @@ public class AtgScraperService {
                     continue;
                 }
 
-                String effectiveTrack = resolveEffectiveTrackSlugStrict(page, date, lap, track); //Changed!
-                if (effectiveTrack == null) { //Changed!
-                    if (++consecutiveMisses >= 2) break; //Changed!
-                    continue; //Changed!
-                } //Changed!
+                String effectiveTrack = resolveEffectiveTrackSlugStrict(page, date, lap, track);
+                if (effectiveTrack == null) {
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
 
                 if (!isCorrectLap(page, lap, effectiveTrack, date)) {
                     log.info("🔸 Lap {} missing on {} {} (future), continuing", lap, date, effectiveTrack);
@@ -1291,12 +1291,12 @@ public class AtgScraperService {
                         "mariehamn"
                 );
 
-                Set<String> allTracks = new LinkedHashSet<>(tracks); //Changed!
-                allTracks.addAll(hardcodedTracks); //Changed!
+                Set<String> allTracks = new LinkedHashSet<>(tracks);
+                allTracks.addAll(hardcodedTracks);
 
-                for (String track : allTracks) { //Changed!
-                    processDateTrackResultatPopups(date, track); //Changed!
-                } //Changed!
+                for (String track : allTracks) {
+                    processDateTrackResultatPopups(date, track);
+                }
             }
         } finally {
             lock.unlock();
@@ -1340,11 +1340,11 @@ public class AtgScraperService {
                     continue;
                 }
 
-                String effectiveTrack = resolveEffectiveTrackSlugStrict(page, date, lap, track); //Changed!
-                if (effectiveTrack == null) { //Changed!
-                    if (++consecutiveMisses >= 2) break; //Changed!
-                    continue; //Changed!
-                } //Changed!
+                String effectiveTrack = resolveEffectiveTrackSlugStrict(page, date, lap, track);
+                if (effectiveTrack == null) {
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
 
                 if (!isCorrectTrack(page, effectiveTrack, date)) return;
 
@@ -2046,77 +2046,75 @@ public class AtgScraperService {
     private record TidInfo(Double tid, String startmetod, String galopp) {
     }
 
-    private static final Pattern WINNARE_URL_PATTERN = Pattern.compile( //Changed!
-            "^https?://www\\.atg\\.se/spel/(\\d{4}-\\d{2}-\\d{2})/vinnare/([^/]+)/lopp/(\\d+)(?:[/?#].*)?$" //Changed!
-    ); //Changed!
+    private static final Pattern WINNARE_URL_PATTERN = Pattern.compile(
+            "^https?://www\\.atg\\.se/spel/(\\d{4}-\\d{2}-\\d{2})/vinnare/([^/]+)/lopp/(\\d+)(?:[/?#].*)?$"
+    );
 
-    private record VinnareRoute(LocalDate date, String trackSlug, int lap) {} //Changed!
+    private record VinnareRoute(LocalDate date, String trackSlug, int lap) {}
 
-    private String waitForStableUrl(Page page, int maxWaitMs, int stepMs) { //Changed!
-        String last = page.url(); //Changed!
-        int stableFor = 0; //Changed!
-        for (int waited = 0; waited < maxWaitMs; waited += stepMs) { //Changed!
-            try { //Changed!
-                page.waitForTimeout(stepMs); //Changed!
-            } catch (PlaywrightException ignored) { //Changed!
-                break; //Changed!
-            } //Changed!
-            String now = page.url(); //Changed!
-            if (Objects.equals(now, last)) { //Changed!
-                stableFor += stepMs; //Changed!
-            } else { //Changed!
-                stableFor = 0; //Changed!
-            } //Changed!
-            last = now; //Changed!
-            if (stableFor >= 800) break; //Changed!
-        } //Changed!
-        return last; //Changed!
-    } //Changed!
+    private String waitForStableUrl(Page page, int maxWaitMs, int stepMs) {
+        String last = page.url();
+        int stableFor = 0;
+        for (int waited = 0; waited < maxWaitMs; waited += stepMs) {
+            try {
+                page.waitForTimeout(stepMs);
+            } catch (PlaywrightException ignored) {
+                break;
+            }
+            String now = page.url();
+            if (Objects.equals(now, last)) {
+                stableFor += stepMs;
+            } else {
+                stableFor = 0;
+            }
+            last = now;
+            if (stableFor >= 800) break;
+        }
+        return last;
+    }
 
-    private VinnareRoute parseVinnareRoute(String url) { //Changed!
-        if (url == null || url.isBlank()) return null; //Changed!
-        Matcher m = WINNARE_URL_PATTERN.matcher(url); //Changed!
-        if (!m.find()) return null; //Changed!
-        try { //Changed!
-            LocalDate d = LocalDate.parse(m.group(1), URL_DATE_FORMAT); //Changed!
-            String slug = m.group(2).trim(); //Changed!
-            int lap = Integer.parseInt(m.group(3)); //Changed!
-            return new VinnareRoute(d, slug, lap); //Changed!
-        } catch (Exception ignored) { //Changed!
-            return null; //Changed!
-        } //Changed!
-    } //Changed!
+    private VinnareRoute parseVinnareRoute(String url) {
+        if (url == null || url.isBlank()) return null;
+        Matcher m = WINNARE_URL_PATTERN.matcher(url);
+        if (!m.find()) return null;
+        try {
+            LocalDate d = LocalDate.parse(m.group(1), URL_DATE_FORMAT);
+            String slug = m.group(2).trim();
+            int lap = Integer.parseInt(m.group(3));
+            return new VinnareRoute(d, slug, lap);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
 
-    private String resolveEffectiveTrackSlugStrict(Page page, LocalDate expectedDate, int expectedLap, String requestedTrackSlug) { //Changed!
-        String stableUrl = waitForStableUrl(page, 3000, 250); //Changed!
-        VinnareRoute route = parseVinnareRoute(stableUrl); //Changed!
+    private String resolveEffectiveTrackSlugStrict(Page page, LocalDate expectedDate, int expectedLap, String requestedTrackSlug) {
+        String stableUrl = waitForStableUrl(page, 3000, 250);
+        VinnareRoute route = parseVinnareRoute(stableUrl);
 
-        if (route == null) { //Changed!
-            log.info("↪️  Unexpected URL '{}' for {} {}, skipping", stableUrl, expectedDate, requestedTrackSlug); //Changed!
-            return null; //Changed!
-        } //Changed!
+        if (route == null) {
+            log.info("↪️  Unexpected URL '{}' for {} {}, skipping", stableUrl, expectedDate, requestedTrackSlug);
+            return null;
+        }
 
-        if (!expectedDate.equals(route.date()) || route.lap() != expectedLap) { //Changed!
-            log.info("↪️  URL mismatch for {} {} lap {} -> landed at {} (date={}, lap={}), skipping", //Changed!
-                    expectedDate, requestedTrackSlug, expectedLap, stableUrl, route.date(), route.lap()); //Changed!
-            return null; //Changed!
-        } //Changed!
+        if (!expectedDate.equals(route.date()) || route.lap() != expectedLap) {
+            log.info("↪️  URL mismatch for {} {} lap {} -> landed at {} (date={}, lap={}), skipping",
+                    expectedDate, requestedTrackSlug, expectedLap, stableUrl, route.date(), route.lap());
+            return null;
+        }
 
-        String requestedKey = trackKey(requestedTrackSlug); //Changed!
-        String landedKey = trackKey(route.trackSlug()); //Changed!
-        if (requestedKey.equals(landedKey)) return requestedTrackSlug; //Changed!
+        String requestedKey = trackKey(requestedTrackSlug);
+        String landedKey = trackKey(route.trackSlug());
+        if (requestedKey.equals(landedKey)) return requestedTrackSlug;
 
-        String switchedByAlert = resolveEffectiveTrackSlug(page, requestedTrackSlug); //Changed!
-        String switchedKey = trackKey(switchedByAlert); //Changed!
-        if (!switchedKey.isBlank() && switchedKey.equals(landedKey)) { //Changed!
-            log.info("🔁 Accepted explicit track switch {} -> {} on {}", requestedTrackSlug, switchedByAlert, stableUrl); //Changed!
-            return switchedByAlert; //Changed!
-        } //Changed!
+        String switchedByAlert = resolveEffectiveTrackSlug(page, requestedTrackSlug);
+        String switchedKey = trackKey(switchedByAlert);
+        if (!switchedKey.isBlank() && switchedKey.equals(landedKey)) {
+            log.info("🔁 Accepted explicit track switch {} -> {} on {}", requestedTrackSlug, switchedByAlert, stableUrl);
+            return switchedByAlert;
+        }
 
-        log.info("↪️  Requested '{}' but landed on '{}' ({}) without explicit switch, skipping", //Changed!
-                requestedTrackSlug, route.trackSlug(), stableUrl); //Changed!
-        return null; //Changed!
-    } //Changed!
-
-
+        log.info("↪️  Requested '{}' but landed on '{}' ({}) without explicit switch, skipping",
+                requestedTrackSlug, route.trackSlug(), stableUrl);
+        return null;
+    }
 }

@@ -33,6 +33,11 @@ import java.util.regex.Pattern;
 
 import static com.example.travscraper.helpers.TrackHelper.FULLNAME_TO_BANKODE;
 
+//LOGIK BEHÖVER UPPDATERAS DÅ DEN BUGGAR ATM!!!!!!!!!!!!!!!!!!!!!!!
+//LOGIK BEHÖVER UPPDATERAS DÅ DEN BUGGAR ATM!!!!!!!!!!!!!!!!!!!!!!!
+//LOGIK BEHÖVER UPPDATERAS DÅ DEN BUGGAR ATM!!!!!!!!!!!!!!!!!!!!!!!
+//LOGIK BEHÖVER UPPDATERAS DÅ DEN BUGGAR ATM!!!!!!!!!!!!!!!!!!!!!!!
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
