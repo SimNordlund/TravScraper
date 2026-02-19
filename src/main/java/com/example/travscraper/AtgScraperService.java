@@ -1119,6 +1119,9 @@ public class AtgScraperService {
             Element vOddEl = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
             String vOdds = vOddEl != null ? vOddEl.text().trim() : "";
 
+            log.info("FUTURE odds raw: date={} track={} lap={} nr={} name='{}' raw='{}'",
+                    date, track, lap, nr, normalizedName, vOdds); //Loggar det som jag sparar i odds temp
+
             String bankode = toKnownBankodOrNull(track);
             if (bankode == null) {
                 log.warn("⚠️  Okänd bana '{}' -> skippar FUTURE (FutureHorse) helt", track);
@@ -2008,9 +2011,9 @@ public class AtgScraperService {
                 return null;
             }
 
-            if (currentOdds == null || currentOdds == 999) {
-                rh.setOdds(parsedOdds);
-                return rh;
+            if (!Objects.equals(currentOdds, parsedOdds)) { //Changed!
+                rh.setOdds(parsedOdds); //Changed!
+                return rh; //Changed!
             }
 
             return null;

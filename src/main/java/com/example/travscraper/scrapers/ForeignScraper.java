@@ -1,3 +1,4 @@
+/*
 package com.example.travscraper.scrapers;
 
 import com.example.travscraper.ScraperProperties;
@@ -458,3 +459,4 @@ public class ForeignScraper {
         return trimToMax(s, 50);
     }
 }
+*/

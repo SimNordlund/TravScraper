@@ -1,3 +1,4 @@
+/*
 package com.example.travscraper.scrapers;
 
 import com.example.travscraper.ScraperProperties;
@@ -680,3 +681,4 @@ public class FutureScraper {
         }
     }
 }
+*/

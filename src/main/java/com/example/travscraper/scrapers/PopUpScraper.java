@@ -1,3 +1,4 @@
+/*
 package com.example.travscraper.scrapers;
 
 import com.example.travscraper.ScraperProperties;
@@ -1298,3 +1299,4 @@ public class PopUpScraper {
     private record TidInfo(Double tid, String startmetod, String galopp) { }
     private record HorseMeta(Integer nr, String name) { }
 }
+*/

@@ -1,3 +1,4 @@
+/*
 package com.example.travscraper.scrapers;
 
 import com.example.travscraper.ScraperProperties;
@@ -437,3 +438,4 @@ public class ScrapedHorse {
         return trimToMax(s, 50);
     }
 }
+*/
