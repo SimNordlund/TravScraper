@@ -1057,13 +1057,43 @@ public class AtgScraperService {
     }
 
     private void parseAndPersistFuture(String html, LocalDate date, String track, int lap) {
-        Elements rows = Jsoup.parse(html).select("tr[data-test-id^=horse-row]");
+        Document doc = Jsoup.parse(html);
+        Elements rows = doc.select("tr[data-test-id^=horse-row]");
         if (rows.isEmpty()) return;
+
+        // --- DISTANS (för loppet, ex "2 140 m" -> 2140) ---
+        Integer raceDistans = null;
+        try {
+            String headerText = "";
+            Element legHeader = doc.selectFirst("#leg-header");
+            if (legHeader != null) {
+                headerText = normalizeCellText(legHeader.text()).replace('\u00A0', ' ');
+            } else {
+                Element game = doc.selectFirst("[data-test-id=vinnare-game]");
+                if (game != null) headerText = normalizeCellText(game.text()).replace('\u00A0', ' ');
+            }
+
+            Pattern distRx = Pattern.compile("(\\d[\\d\\s]{2,6})\\s*m\\b", Pattern.CASE_INSENSITIVE);
+            Matcher md = distRx.matcher(headerText);
+            if (md.find()) {
+                String digits = md.group(1).replaceAll("\\s+", "");
+                int d = Integer.parseInt(digits);
+                if (d >= 600 && d <= 4000) raceDistans = d;
+            }
+        } catch (Exception ignored) {
+            raceDistans = null;
+        }
+
+        if (raceDistans != null) {
+            log.info("FUTURE distans parsed: date={} track={} lap={} distans={}", date, track, lap, raceDistans);
+        } else {
+            log.debug("FUTURE distans missing: date={} track={} lap={}", date, track, lap);
+        }
 
         List<FutureHorse> toSave = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
-        List<ResultHorse> oddsUpdates = new ArrayList<>();
+        Map<String, ResultHorse> resultUpserts = new LinkedHashMap<>();
 
         List<String> track1337 = List.of(
                 "bjerke",
@@ -1119,8 +1149,11 @@ public class AtgScraperService {
             Element vOddEl = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
             String vOdds = vOddEl != null ? vOddEl.text().trim() : "";
 
-            log.info("FUTURE odds raw: date={} track={} lap={} nr={} name='{}' raw='{}'",
-                    date, track, lap, nr, normalizedName, vOdds); //Loggar det som jag sparar i odds temp
+            Element driverEl = tr.selectFirst("[startlist-export-id^=startlist-cell-driver-split-export]");
+            String kusk = driverEl != null ? trimToMax(normalizeCellText(driverEl.text()), 80) : "";
+
+            log.info("FUTURE raw: date={} track={} lap={} nr={} name='{}' odds='{}' kusk='{}' distans='{}'",
+                    date, track, lap, nr, normalizedName, vOdds, kusk, raceDistans);
 
             String bankode = toKnownBankodOrNull(track);
             if (bankode == null) {
@@ -1153,10 +1186,65 @@ public class AtgScraperService {
             boolean allowCreateResultRow = track1337.contains(trackKey(track))
                     || track1337.contains(trackKey(BANKODE_TO_SLUG.getOrDefault(bankode, "")));
 
+            // --- ODDS upsert (som tidigare) ---
             ResultHorse rhOdds = buildOrUpdateResultOddsForFuture(
                     date, bankode, lap, normalizedName, nr, vOdds, allowCreateResultRow
             );
-            if (rhOdds != null) oddsUpdates.add(rhOdds);
+            if (rhOdds != null) {
+                if (raceDistans != null && rhOdds.getDistans() == null) {
+                    rhOdds.setDistans(raceDistans);
+                }
+                String key = rhOdds.getDatum() + "|" + rhOdds.getBankod() + "|" + rhOdds.getLopp() + "|" + rhOdds.getNamn();
+                resultUpserts.put(key, rhOdds);
+            }
+
+            // --- KUSK + DISTANS upsert (nytt/utökat) ---
+            if ((kusk != null && !kusk.isBlank()) || raceDistans != null) {
+                int datum = toYyyymmdd(date);
+                String safeName = normalizedName;
+                String key = datum + "|" + bankode + "|" + lap + "|" + safeName;
+
+                ResultHorse rh = resultUpserts.get(key);
+                if (rh == null) {
+                    Optional<ResultHorse> existingRh = resultRepo
+                            .findByDatumAndBankodAndLoppAndNamn(datum, bankode, lap, safeName);
+                    if (existingRh.isPresent()) {
+                        rh = existingRh.get();
+                    } else if (allowCreateResultRow) {
+                        int parsedNr = 0;
+                        try {
+                            parsedNr = Integer.parseInt(nr);
+                        } catch (NumberFormatException ignored) {
+                            parsedNr = 0;
+                        }
+                        rh = ResultHorse.builder()
+                                .datum(datum)
+                                .bankod(bankode)
+                                .lopp(lap)
+                                .nr(parsedNr)
+                                .namn(safeName)
+                                .build();
+                    }
+                }
+
+                if (rh != null) {
+                    if (kusk != null && !kusk.isBlank()) {
+                        String current = rh.getKusk();
+                        if (current == null || current.isBlank() || !Objects.equals(current, kusk)) {
+                            rh.setKusk(kusk);
+                        }
+                    }
+
+                    if (raceDistans != null) {
+                        Integer currentD = rh.getDistans();
+                        if (currentD == null || !Objects.equals(currentD, raceDistans)) {
+                            rh.setDistans(raceDistans);
+                        }
+                    }
+
+                    resultUpserts.put(key, rh);
+                }
+            }
         }
 
         try {
@@ -1181,15 +1269,18 @@ public class AtgScraperService {
             }
         }
 
-        if (!oddsUpdates.isEmpty()) {
+        List<ResultHorse> resultUpdates = new ArrayList<>(resultUpserts.values());
+
+        if (!resultUpdates.isEmpty()) {
             try {
-                resultRepo.saveAll(oddsUpdates);
-                log.info("💾 (future) Uppdaterade/skapade {} odds-rader i RESULTAT för {} {} lap {}", oddsUpdates.size(), date, track, lap);
+                resultRepo.saveAll(resultUpdates);
+                log.info("💾 (future) Uppdaterade/skapade {} rader i RESULTAT (odds/kusk/distans) för {} {} lap {}",
+                        resultUpdates.size(), date, track, lap);
             } catch (DataIntegrityViolationException dive) {
-                log.warn("🔁 (future) saveAll odds krockade, retrying per row på {} {} lap {}: {}",
+                log.warn("🔁 (future) saveAll (odds/kusk/distans) krockade, retrying per row på {} {} lap {}: {}",
                         date, track, lap, dive.getMostSpecificCause().getMessage());
 
-                for (ResultHorse rh : oddsUpdates) {
+                for (ResultHorse rh : resultUpdates) {
                     try {
                         resultRepo.save(rh);
                     } catch (DataIntegrityViolationException ignored) {
@@ -1198,25 +1289,45 @@ public class AtgScraperService {
                                     .findByDatumAndBankodAndLoppAndNamn(rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn());
                             if (existing.isPresent()) {
                                 ResultHorse e = existing.get();
-                                Integer currentOdds = e.getOdds();
-                                boolean isEjOdds = (rh.getOdds() != null && rh.getOdds() == 99);
 
-                                if (isEjOdds) {
-                                    if (currentOdds == null || currentOdds != 99) {
-                                        e.setOdds(99);
-                                        resultRepo.save(e);
+                                // Odds: behåll din "säker" fallback-logik
+                                Integer incomingOdds = rh.getOdds();
+                                if (incomingOdds != null) {
+                                    Integer currentOdds = e.getOdds();
+                                    boolean isEjOdds = (incomingOdds == 99);
+
+                                    if (isEjOdds) {
+                                        if (currentOdds == null || currentOdds != 99) {
+                                            e.setOdds(99);
+                                        }
+                                    } else if (currentOdds == null || currentOdds == 999) {
+                                        e.setOdds(incomingOdds);
                                     }
-                                } else if (currentOdds == null || currentOdds == 999) {
-                                    e.setOdds(rh.getOdds());
-                                    resultRepo.save(e);
                                 }
 
+                                // Kusk
+                                if (rh.getKusk() != null && !rh.getKusk().isBlank()) {
+                                    String currentK = e.getKusk();
+                                    if (currentK == null || currentK.isBlank() || !Objects.equals(currentK, rh.getKusk())) {
+                                        e.setKusk(rh.getKusk());
+                                    }
+                                }
+
+                                // Distans
+                                if (rh.getDistans() != null) {
+                                    Integer currentD = e.getDistans();
+                                    if (currentD == null || !Objects.equals(currentD, rh.getDistans())) {
+                                        e.setDistans(rh.getDistans());
+                                    }
+                                }
+
+                                resultRepo.save(e);
                             } else {
                                 log.warn("⚠️  (future) Kunde inte hitta rad efter krock datum={} bankod={} lopp={} namn={}",
                                         rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn());
                             }
                         } catch (Exception ex) {
-                            log.warn("⚠️  (future) Kunde inte retry-upserta odds datum={} bankod={} lopp={} namn={} ({})",
+                            log.warn("⚠️  (future) Kunde inte retry-upserta (odds/kusk/distans) datum={} bankod={} lopp={} namn={} ({})",
                                     rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn(), ex.getMessage());
                         }
                     }
@@ -1226,6 +1337,8 @@ public class AtgScraperService {
 
         log.info("💾 (future) Saved/updated {} horses for {} {} lap {}", toSave.size(), date, track, lap);
     }
+
+
 
     private String extractStartNumber(Element tr) {
         Element numBtn = tr.selectFirst("button[data-test-start-number], [data-test-start-number]");
@@ -2011,9 +2124,9 @@ public class AtgScraperService {
                 return null;
             }
 
-            if (!Objects.equals(currentOdds, parsedOdds)) { //Changed!
-                rh.setOdds(parsedOdds); //Changed!
-                return rh; //Changed!
+            if (!Objects.equals(currentOdds, parsedOdds)) {
+                rh.setOdds(parsedOdds);
+                return rh;
             }
 
             return null;
