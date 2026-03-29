@@ -1,5 +1,5 @@
 // src/main/java/com/example/travscraper/Service/HorseWarningService.java
-package com.example.travscraper.Service;
+package com.example.travscraper.service;
 
 import com.example.travscraper.entity.HorseWarning;
 import com.example.travscraper.repo.HorseStartSummary;
