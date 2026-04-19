@@ -269,7 +269,7 @@ public class AtgScraperService {
     }
 
     private static Integer extractPlaceringFromTds(Elements tds, int distIdx) {
-        if (tds == null || tds.isEmpty()) return null;
+        if (tds == null || tds.isEmpty()) return 0;
 
         for (int i = 0; i < tds.size(); i++) {
             Element td = tds.get(i);
@@ -285,7 +285,7 @@ public class AtgScraperService {
             if (v != null) return v;
         }
 
-        return null;
+        return 0;
     }
 
     private static Integer parsePlaceringRawDigit1to9(String raw) {
