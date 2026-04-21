@@ -763,7 +763,7 @@ public class AtgScraperService {
 
                 Page.NavigateOptions nav = new Page.NavigateOptions()
                         .setWaitUntil(WaitUntilState.NETWORKIDLE)
-                        .setTimeout(60_000);
+                        .setTimeout(70_000);
 
                 vPage.navigate(vUrl, nav);
 
