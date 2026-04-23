@@ -781,7 +781,7 @@ public class AtgScraperService {
                             "button:has-text(\"Tillåt alla\"):visible, " +
                                     "button:has-text(\"Avvisa\"):visible, " +
                                     "tr[data-test-id^=horse-row]",
-                            new Page.WaitForSelectorOptions().setTimeout(60_000));
+                            new Page.WaitForSelectorOptions().setTimeout(75_000));
                 } catch (PlaywrightException e) {
                     if (e.getMessage() != null && e.getMessage().contains("Timeout")) {
                         log.info("⏩ Lap {} saknas för {} {}, hoppar vidare", lap, track, date);
@@ -794,12 +794,12 @@ public class AtgScraperService {
                 if ("BUTTON".equalsIgnoreCase(first.evaluate("e => e.tagName").toString())) {
                     first.click();
                     vPage.waitForSelector("tr[data-test-id^=horse-row]",
-                            new Page.WaitForSelectorOptions().setTimeout(60_000));
+                            new Page.WaitForSelectorOptions().setTimeout(75_000));
                 }
 
                 vPage.waitForSelector(
                         "button:has-text(\"Tillåt alla\"), button:has-text(\"Avvisa\"), tr[data-test-id^=horse-row]",
-                        new Page.WaitForSelectorOptions().setTimeout(60_000)
+                        new Page.WaitForSelectorOptions().setTimeout(75_000)
                 );
 
                 pPage.navigate(pUrl, nav);
@@ -813,7 +813,7 @@ public class AtgScraperService {
 
                 try {
                     vPage.waitForSelector("tr[data-test-id^=horse-row]",
-                            new Page.WaitForSelectorOptions().setTimeout(60_000));
+                            new Page.WaitForSelectorOptions().setTimeout(75_000));
                 } catch (PlaywrightException e) {
                     log.warn("⚠️  Playwright-fel på {}: {}", vUrl, e.getMessage());
                     if (e.getMessage() != null && e.getMessage().contains("Timeout")) {
@@ -835,11 +835,11 @@ public class AtgScraperService {
                 consecutiveMisses = 0;
 
                 pPage.waitForSelector("tr[data-test-id^=horse-row]",
-                        new Page.WaitForSelectorOptions().setTimeout(60_000));
+                        new Page.WaitForSelectorOptions().setTimeout(75_000));
 
                 tPage.waitForSelector("text=\"Rätt kombination:\"",
                         new Page.WaitForSelectorOptions()
-                                .setTimeout(60_000)
+                                .setTimeout(75_000)
                                 .setState(WaitForSelectorState.ATTACHED));
 
                 Map<String, String> pMap = extractOddsMap(pPage, "[data-test-id=startlist-cell-podds]");
@@ -876,7 +876,7 @@ public class AtgScraperService {
 
                 Page.NavigateOptions nav = new Page.NavigateOptions()
                         .setWaitUntil(WaitUntilState.NETWORKIDLE)
-                        .setTimeout(60_000);
+                        .setTimeout(75_000);
 
                 page.navigate(url, nav);
 
@@ -891,11 +891,11 @@ public class AtgScraperService {
                             "button:has-text(\"Tillåt alla\"):visible, " +
                                     "button:has-text(\"Avvisa\"):visible, " +
                                     "tr[data-test-id^=horse-row]",
-                            new Page.WaitForSelectorOptions().setTimeout(60_000));
+                            new Page.WaitForSelectorOptions().setTimeout(75_000));
                     if ("BUTTON".equalsIgnoreCase(first.evaluate("e => e.tagName").toString())) {
                         first.click();
                         page.waitForSelector("tr[data-test-id^=horse-row]",
-                                new Page.WaitForSelectorOptions().setTimeout(60_000));
+                                new Page.WaitForSelectorOptions().setTimeout(75_000));
                     }
                 } catch (PlaywrightException e) {
                     if (e.getMessage() != null && e.getMessage().contains("Timeout")) {
@@ -1433,7 +1433,7 @@ public class AtgScraperService {
             try (Page page = ctx.newPage()) {
                 Page.NavigateOptions nav = new Page.NavigateOptions()
                         .setWaitUntil(WaitUntilState.NETWORKIDLE)
-                        .setTimeout(60_000);
+                        .setTimeout(75_000);
 
                 page.navigate(url, nav);
 
@@ -1446,12 +1446,12 @@ public class AtgScraperService {
                         "button:has-text(\"Tillåt alla\"):visible, " +
                                 "button:has-text(\"Avvisa\"):visible, " +
                                 "tr[data-test-id^=horse-row]",
-                        new Page.WaitForSelectorOptions().setTimeout(60_000));
+                        new Page.WaitForSelectorOptions().setTimeout(75_000));
 
                 dismissCookiesIfPresent(page);
 
                 page.waitForSelector("tr[data-test-id^=horse-row]",
-                        new Page.WaitForSelectorOptions().setTimeout(60_000));
+                        new Page.WaitForSelectorOptions().setTimeout(75_000));
 
                 if (isCancelledRace(page)) {
                     if (++consecutiveMisses >= 2) break;
