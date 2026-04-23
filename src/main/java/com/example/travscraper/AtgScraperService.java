@@ -254,7 +254,9 @@ public class AtgScraperService {
         Matcher mr = PLACERING_WITH_R.matcher(token);
         if (mr.matches()) token = mr.group(1);
 
-        if (token.equals("k") || token.equals("p") || token.equals("str") || token.equals("d")) return 99;
+        if (token.equals("k") || token.equals("p") || token.equals("str")) return 99;
+
+        if (token.equals("d")) return 15;
 
         if (!token.matches("^\\d+$")) return null;
         if (token.length() > 2) return null;
