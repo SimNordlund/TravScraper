@@ -63,6 +63,10 @@ public class AtgScraperService {
     private static final Pattern PRIS_THOUSANDS = Pattern.compile("^\\s*(\\d{1,3}(?:[ \\u00A0\\.]\\d{3})+|\\d{4,})\\s*(?:kr)?\\s*$", Pattern.CASE_INSENSITIVE);
     private static final Pattern PRIS_K = Pattern.compile("^\\s*(\\d{1,6})\\s*k\\s*$", Pattern.CASE_INSENSITIVE);
     private static final Pattern ODDS_NUMBER = Pattern.compile("^\\s*(\\d{1,4})(?:[\\.,](\\d{1,2}))?\\s*$");
+    private static final Pattern DISTANCE_ADDITION = Pattern.compile(
+            "\\bTillägg\\s*:?\\s*(\\d{1,3})\\s*(?:meter|m)\\b",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+    );
     private static final String SEL_COOKIE_BUTTONS =
             "button:has-text(\"Tillåt alla\"):visible, " +
                     "button:has-text(\"Avvisa\"):visible, " +
@@ -1123,7 +1127,21 @@ public class AtgScraperService {
                 "mariehamn"
         );
 
-        for (Element tr : rows) {
+        int currentDistanceAddition = 0;
+
+        for (Element tr : doc.select("tr")) {
+            Integer distanceAddition = parseDistanceAddition(tr);
+            if (distanceAddition != null) {
+                currentDistanceAddition = distanceAddition;
+                log.info("FUTURE distanstillägg parsed: date={} track={} lap={} tillägg={}m",
+                        date, track, lap, currentDistanceAddition);
+                continue;
+            }
+
+            if (!isHorseRow(tr)) {
+                continue;
+            }
+
             String nr = extractStartNumber(tr);
             nr = nr.replaceAll("\\D+", "");
             if (nr.isBlank()) {
@@ -1153,9 +1171,10 @@ public class AtgScraperService {
 
             Element driverEl = tr.selectFirst("[startlist-export-id^=startlist-cell-driver-split-export]");
             String kusk = driverEl != null ? trimToMax(normalizeCellText(driverEl.text()), 80) : "";
+            Integer horseDistans = raceDistans != null ? raceDistans + currentDistanceAddition : null;
 
             log.info("FUTURE raw: date={} track={} lap={} nr={} name='{}' odds='{}' kusk='{}' distans='{}'",
-                    date, track, lap, nr, normalizedName, vOdds, kusk, raceDistans);
+                    date, track, lap, nr, normalizedName, vOdds, kusk, horseDistans);
 
             String bankode = toKnownBankodOrNull(track);
             if (bankode == null) {
@@ -1193,15 +1212,15 @@ public class AtgScraperService {
                     date, bankode, lap, normalizedName, nr, vOdds, allowCreateResultRow
             );
             if (rhOdds != null) {
-                if (raceDistans != null && rhOdds.getDistans() == null) {
-                    rhOdds.setDistans(raceDistans);
+                if (horseDistans != null && rhOdds.getDistans() == null) {
+                    rhOdds.setDistans(horseDistans);
                 }
                 String key = rhOdds.getDatum() + "|" + rhOdds.getBankod() + "|" + rhOdds.getLopp() + "|" + rhOdds.getNamn();
                 resultUpserts.put(key, rhOdds);
             }
 
             // --- KUSK + DISTANS upsert (nytt/utökat) ---
-            if ((kusk != null && !kusk.isBlank()) || raceDistans != null) {
+            if ((kusk != null && !kusk.isBlank()) || horseDistans != null) {
                 int datum = toYyyymmdd(date);
                 String safeName = normalizedName;
                 String key = datum + "|" + bankode + "|" + lap + "|" + safeName;
@@ -1237,10 +1256,10 @@ public class AtgScraperService {
                         }
                     }
 
-                    if (raceDistans != null) {
+                    if (horseDistans != null) {
                         Integer currentD = rh.getDistans();
-                        if (currentD == null || !Objects.equals(currentD, raceDistans)) {
-                            rh.setDistans(raceDistans);
+                        if (currentD == null || !Objects.equals(currentD, horseDistans)) {
+                            rh.setDistans(horseDistans);
                         }
                     }
 
@@ -1341,6 +1360,24 @@ public class AtgScraperService {
     }
 
 
+    private static boolean isHorseRow(Element tr) {
+        return tr != null && tr.attr("data-test-id").startsWith("horse-row");
+    }
+
+    private static Integer parseDistanceAddition(Element tr) {
+        if (tr == null) return null;
+
+        String text = normalizeCellText(tr.text()).replace('\u00A0', ' ');
+        Matcher matcher = DISTANCE_ADDITION.matcher(text);
+        if (!matcher.find()) return null;
+
+        try {
+            int meters = Integer.parseInt(matcher.group(1));
+            if (meters >= 0 && meters <= 500) return meters;
+        } catch (NumberFormatException ignored) {
+        }
+        return null;
+    }
 
     private String extractStartNumber(Element tr) {
         Element numBtn = tr.selectFirst("button[data-test-start-number], [data-test-start-number]");
