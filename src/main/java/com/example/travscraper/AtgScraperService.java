@@ -44,8 +44,12 @@ import static com.example.travscraper.helpers.TrackHelper.FULLNAME_TO_BANKODE;
 public class AtgScraperService {
 
     private static final Pattern BYTE_AV_BANA_TILL = Pattern.compile(
-            "Byte\\s+av\\s+bana\\s+till\\s+([^:]+)",
-            Pattern.CASE_INSENSITIVE
+            "Byte\\s+av\\s+bana\\s+till\\s+(.+?)(?:[:\\.]|$)",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+    );
+    private static final Pattern FLYTT_AV_TAVLING_TILL = Pattern.compile(
+            "Flytt\\s+av\\s+tävling\\s*:\\s*.*?\\btill\\s+(.+?)(?:\\s+travbana\\b|[\\.,]|$)",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.DOTALL
     );
 
     private static final DateTimeFormatter URL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -2090,20 +2094,49 @@ public class AtgScraperService {
         return null;
     }
 
+    private static String normalizeTrackSwitchTarget(String target) {
+        String cleaned = normalizeCellText(target)
+                .replaceAll("\\s+", " ")
+                .replaceFirst("(?iu)\\s+travbana\\.?$", "")
+                .trim();
+        if (cleaned.isBlank()) return null;
+
+        if (toKnownBankodOrNull(cleaned) == null && cleaned.endsWith("s")) {
+            String withoutPossessive = cleaned.substring(0, cleaned.length() - 1).trim();
+            if (toKnownBankodOrNull(withoutPossessive) != null) {
+                cleaned = withoutPossessive;
+            }
+        }
+
+        return cleaned.isBlank() ? null : cleaned;
+    }
+
+    private static String extractTrackSwitchTargetFromText(String text) {
+        String normalized = normalizeCellText(text);
+        if (normalized.isBlank()) return null;
+
+        Matcher byteMatcher = BYTE_AV_BANA_TILL.matcher(normalized);
+        if (byteMatcher.find()) {
+            return normalizeTrackSwitchTarget(byteMatcher.group(1));
+        }
+
+        Matcher flyttMatcher = FLYTT_AV_TAVLING_TILL.matcher(normalized);
+        if (flyttMatcher.find()) {
+            return normalizeTrackSwitchTarget(flyttMatcher.group(1));
+        }
+
+        return null;
+    }
+
     private String extractTrackSwitchTargetFromAlert(Page page) {
         try {
-            Locator strong = page.locator("[data-test-id=\"game-alerts\"] strong")
-                    .filter(new Locator.FilterOptions().setHasText(
-                            Pattern.compile("Byte\\s+av\\s+bana\\s+till", Pattern.CASE_INSENSITIVE)));
-
-            if (strong.count() == 0) return null;
-
-            String txt = normalizeCellText(strong.first().innerText());
-            Matcher m = BYTE_AV_BANA_TILL.matcher(txt);
-            if (!m.find()) return null;
-
-            String target = normalizeCellText(m.group(1));
-            return target.isBlank() ? null : target;
+            Locator alerts = page.locator("[data-test-id=\"game-alerts\"]");
+            int count = alerts.count();
+            for (int i = 0; i < count; i++) {
+                String target = extractTrackSwitchTargetFromText(alerts.nth(i).innerText());
+                if (target != null && !target.isBlank()) return target;
+            }
+            return null;
         } catch (PlaywrightException ignored) {
             return null;
         }
@@ -2115,22 +2148,12 @@ public class AtgScraperService {
 
         String bankod = toKnownBankodOrNull(targetName);
         if (bankod == null) {
-            log.warn("⚠️  Byte av bana hittades men okänd bana '{}' på {}, behåller '{}'",
+            log.warn("⚠️  Banflytt hittades men okänd bana '{}' på {}, behåller '{}'",
                     targetName, page.url(), requestedTrackSlug);
             return requestedTrackSlug;
         }
 
         String overrideSlug = BANKODE_TO_SLUG.getOrDefault(bankod, trackKey(targetName));
-
-        if (!trackKey(requestedTrackSlug).equals(trackKey(overrideSlug))) {
-            log.info("🔁 Byte av bana på {}: '{}' -> '{}' ({} -> {})",
-                    page.url(),
-                    requestedTrackSlug,
-                    overrideSlug,
-                    toKnownBankodOrNull(requestedTrackSlug),
-                    bankod);
-        }
-
         return overrideSlug;
     }
 
@@ -2259,10 +2282,18 @@ public class AtgScraperService {
 
         String requestedKey = trackKey(requestedTrackSlug);
         String landedKey = trackKey(route.trackSlug());
-        if (requestedKey.equals(landedKey)) return requestedTrackSlug;
-
         String switchedByAlert = resolveEffectiveTrackSlug(page, requestedTrackSlug);
         String switchedKey = trackKey(switchedByAlert);
+
+        if (requestedKey.equals(landedKey)) {
+            if (!switchedKey.isBlank() && !switchedKey.equals(requestedKey)) {
+                log.info("🔁 Accepted explicit track switch {} -> {} on {} even though ATG route remains {}",
+                        requestedTrackSlug, switchedByAlert, stableUrl, route.trackSlug());
+                return switchedByAlert;
+            }
+            return requestedTrackSlug;
+        }
+
         if (!switchedKey.isBlank() && switchedKey.equals(landedKey)) {
             log.info("🔁 Accepted explicit track switch {} -> {} on {}", requestedTrackSlug, switchedByAlert, stableUrl);
             return switchedByAlert;

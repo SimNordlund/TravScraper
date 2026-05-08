@@ -10,6 +10,7 @@ import java.time.LocalDate;
 @Configuration
 @ConfigurationProperties(prefix = "scraper")
 @Getter
+
 @Setter
 public class ScraperProperties {
 
@@ -19,8 +20,8 @@ public class ScraperProperties {
     private LocalDate startDateForeign = LocalDate.now().minusDays(6);
     private LocalDate endDateResultForeign = LocalDate.now().minusDays(6);
 
-    private LocalDate startDateFuture = LocalDate.now().minusDays(1); //30 klar
-    private LocalDate endDateFuture = LocalDate.now().plusDays(1);
+    private LocalDate startDateFuture = LocalDate.now().minusDays(66); //30 klar
+    private LocalDate endDateFuture = LocalDate.now().plusDays(66);
 
     private LocalDate startDateResultatPopup = LocalDate.now().minusDays(1);
     private LocalDate endDateResultatPopup = LocalDate.now().plusDays(1);
