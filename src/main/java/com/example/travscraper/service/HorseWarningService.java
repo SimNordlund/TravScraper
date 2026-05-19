@@ -1,4 +1,3 @@
-// src/main/java/com/example/travscraper/Service/HorseWarningService.java
 package com.example.travscraper.service;
 
 import com.example.travscraper.entity.HorseWarning;

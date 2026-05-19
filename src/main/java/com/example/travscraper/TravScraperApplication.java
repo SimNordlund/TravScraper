@@ -1,5 +1,6 @@
 package com.example.travscraper;
 
+import com.example.travscraper.service.HorseWarningService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -10,11 +11,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class TravScraperApplication implements CommandLineRunner {
 
     private final AtgScraperService service;
-    private final com.example.travscraper.service.HorseWarningService horseWarningService;
+    private final HorseWarningService horseWarningService;
 
-    public TravScraperApplication(
-            AtgScraperService svc,
-            com.example.travscraper.service.HorseWarningService horseWarningService
+    public TravScraperApplication(AtgScraperService svc, HorseWarningService horseWarningService
     ) {
         this.service = svc;
         this.horseWarningService = horseWarningService;
@@ -27,9 +26,9 @@ public class TravScraperApplication implements CommandLineRunner {
     @Override
     public void run(String... args) {
         //service.scrapeForeign();
-        //service.scrape();
+        service.scrape();
         service.scrapeFuture();
-      //  service.scrapeResultatPopupsOnly();
+        service.scrapeResultatPopupsOnly();
         horseWarningService.refreshWarnings(8);
     }
 }
