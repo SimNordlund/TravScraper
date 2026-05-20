@@ -623,7 +623,7 @@ public class AtgScraperService {
                     .orElse(end.minusDays(0));
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-                log.info("📆  Scraping RESULTS {}", date);
+                log.info("📆  Scraping - Resultat for ROI {}", date);
                 List<String> tracks = tracksFor(date);
                 for (String track : tracks) {
                     processDateTrack(date, track);
@@ -1211,7 +1211,6 @@ public class AtgScraperService {
             boolean allowCreateResultRow = track1337.contains(trackKey(track))
                     || track1337.contains(trackKey(BANKODE_TO_SLUG.getOrDefault(bankode, "")));
 
-            // --- ODDS upsert (som tidigare) ---
             ResultHorse rhOdds = buildOrUpdateResultOddsForFuture(
                     date, bankode, lap, normalizedName, nr, vOdds, allowCreateResultRow
             );
@@ -1223,7 +1222,6 @@ public class AtgScraperService {
                 resultUpserts.put(key, rhOdds);
             }
 
-            // --- KUSK + DISTANS upsert (nytt/utökat) ---
             if ((kusk != null && !kusk.isBlank()) || horseDistans != null) {
                 int datum = toYyyymmdd(date);
                 String safeName = normalizedName;
