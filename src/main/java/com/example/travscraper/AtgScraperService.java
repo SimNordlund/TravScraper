@@ -1954,7 +1954,7 @@ public class AtgScraperService {
 
         try {
             resultRepo.saveAll(toSave);
-            log.info("💾 (resultat) Sparade/uppdaterade {} rader från 'Mer info' (nr=keep/default0) på {} {} lopp {}",
+            log.info("💾 (resultat - POPUP) Sparade/uppdaterade {} rader från 'Mer info' (nr=keep/default0) på {} {} lopp {}",
                     toSave.size(), meetingDate, meetingTrackSlug, meetingLap);
         } catch (DataIntegrityViolationException dive) {
             log.warn("⚠️  (resultat) saveAll krockade, kör fallback rad-för-rad (nr=keep/default0) på {} {} lopp {}: {}",
