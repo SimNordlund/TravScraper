@@ -552,6 +552,8 @@ public class AtgScraperService {
         return slugs;
     }
 
+
+    //Vaska banor här
     private List<String> tracksForForeign(LocalDate date) {
         List<String> codes = new ArrayList<>();
         codes.add("Bd");
@@ -647,7 +649,7 @@ public class AtgScraperService {
                     .orElse(end.minusDays(0));
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-                log.info("📆  Scraping danskar och norskar RESULTS {}", date);
+                log.info("📆  Scraping FOREIGN RESULTS {}", date);
                 List<String> tracks = tracksForForeign(date);
                 for (String track : tracks) {
                     processDateTrack(date, track);
@@ -671,7 +673,7 @@ public class AtgScraperService {
                     .orElse(end);
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-                log.info("📆  Scraping FUTURE {}", date);
+                log.info("📆  Scraping the FUTURE {}", date);
                 List<String> tracks = tracksFor(date);
                 List<String> hardcodedTracks = List.of(
                         "bjerke",
