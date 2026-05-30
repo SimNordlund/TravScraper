@@ -885,7 +885,7 @@ public class AtgScraperService {
             try (Page page = ctx.newPage()) {
 
                 Page.NavigateOptions nav = new Page.NavigateOptions()
-                        .setWaitUntil(WaitUntilState.NETWORKIDLE)
+                        .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
                         .setTimeout(75_000);
 
                 page.navigate(url, nav);
