@@ -774,7 +774,7 @@ public class AtgScraperService {
                  Page tPage = ctx.newPage()) {
 
                 Page.NavigateOptions nav = new Page.NavigateOptions()
-                        .setWaitUntil(WaitUntilState.NETWORKIDLE)
+                        .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
                         .setTimeout(70_000);
 
                 vPage.navigate(vUrl, nav);
@@ -1473,7 +1473,7 @@ public class AtgScraperService {
 
             try (Page page = ctx.newPage()) {
                 Page.NavigateOptions nav = new Page.NavigateOptions()
-                        .setWaitUntil(WaitUntilState.NETWORKIDLE)
+                        .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
                         .setTimeout(75_000);
 
                 page.navigate(url, nav);
@@ -1575,7 +1575,7 @@ public class AtgScraperService {
         try {
             robustClick(btn, 15_000);
             try {
-                page.waitForLoadState(LoadState.NETWORKIDLE);
+                page.waitForLoadState(LoadState.DOMCONTENTLOADED);
             } catch (PlaywrightException ignored) {
             }
         } catch (PlaywrightException e) {
