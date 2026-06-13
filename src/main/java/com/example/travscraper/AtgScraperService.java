@@ -3,7 +3,6 @@ package com.example.travscraper;
 import com.example.travscraper.entity.FutureHorse;
 import com.example.travscraper.entity.ResultHorse;
 import com.example.travscraper.entity.ScrapedHorse;
-import com.example.travscraper.entity.ScrapedHorseKey;
 import com.example.travscraper.repo.FutureHorseRepo;
 import com.example.travscraper.repo.ResultHorseRepo;
 import com.example.travscraper.repo.ScrapedHorseRepo;
@@ -58,8 +57,15 @@ public class AtgScraperService {
     private static final Pattern HAS_LETTER = Pattern.compile(".*\\p{L}.*");
     private static final int RESULTAT_MAX_HORSES_PER_LAP = 999;
     private static final int RESULTAT_MAX_ROWS_PER_HORSE = 999;
+    private static final int RESULT_SCRAPE_PAUSE_MIN_MS = 200;
+    private static final int RESULT_SCRAPE_PAUSE_SPREAD_MS = 500;
+    private static final int FOREIGN_RESULT_SCRAPE_PAUSE_MIN_MS = 100;
+    private static final int FOREIGN_RESULT_SCRAPE_PAUSE_SPREAD_MS = 300;
     private static final Pattern TRACK_LAP_PATTERN = Pattern.compile("^\\s*(.+?)\\s*-\\s*(\\d+)\\s*$");
     private static final Pattern DIGITS_ONLY = Pattern.compile("(\\d{6,8})");
+    private static final Pattern RESULTAT_ROUTE_PATTERN = Pattern.compile(
+            "^https?://www\\.atg\\.se/spel/(\\d{4}-\\d{2}-\\d{2})/(vinnare|plats|trio)/([^/]+)/lopp/(\\d+)/resultat(?:[/?#].*)?$"
+    );
     private static final Pattern RESULT_HREF_PATTERN = Pattern.compile(
             "/spel/(\\d{4}-\\d{2}-\\d{2})/vinnare/([^/]+)/lopp/(\\d+)/resultat"
     );
@@ -99,6 +105,10 @@ public class AtgScraperService {
                     "[data-test-id=\"result-date\"], [data-test-id=\"result-date\"] span";
     private static final Pattern TIME_VALUE = Pattern.compile("(?:\\d+\\.)?(\\d{1,2})[\\.,](\\d{1,2})");
     private static final Map<String, String> BANKODE_TO_SLUG;
+    private static final List<String> FOREIGN_TRACK_CODES = List.of(
+            "Bd", "Br", "Bt", "Dr", "Fs", "Ha", "Ht", "Ja", "Kl", "Le", "Mo", "Sö",
+            "Aa", "Bi", "Bm", "Ch", "Ny", "Od", "Se", "Ål"
+    );
     private static final String DEFAULT_BANKOD = "XX";
     private static final int RESULT_BANKOD_MAX_LEN = 20;
 
@@ -555,28 +565,7 @@ public class AtgScraperService {
 
     //Vaska banor här
     private List<String> tracksForForeign(LocalDate date) {
-        List<String> codes = new ArrayList<>();
-        codes.add("Bd");
-        codes.add("Br");
-        codes.add("Bt");
-        codes.add("Dr");
-        codes.add("Fs");
-        codes.add("Ha");
-        codes.add("Ht");
-        codes.add("Ja");
-        codes.add("Kl");
-        codes.add("Le");
-        codes.add("Mo");
-        codes.add("Sö");
-
-        codes.add("Aa");
-        codes.add("Bi");
-        codes.add("Bm");
-        codes.add("Ch");
-        codes.add("Ny");
-        codes.add("Od");
-        codes.add("Se");
-        codes.add("Ål");
+        List<String> codes = FOREIGN_TRACK_CODES;
 
         if (codes.isEmpty()) {
             log.info("ℹ️  Inga banor i startlista för {}", date);
@@ -628,7 +617,7 @@ public class AtgScraperService {
                 log.info("📆  Scraping - Resultat for ROI {}", date);
                 List<String> tracks = tracksFor(date);
                 for (String track : tracks) {
-                    processDateTrack(date, track);
+                    processDateTrack(date, track, RESULT_SCRAPE_PAUSE_MIN_MS, RESULT_SCRAPE_PAUSE_SPREAD_MS);
                 }
             }
         } finally {
@@ -652,7 +641,7 @@ public class AtgScraperService {
                 log.info("📆  Scraping FOREIGN RESULTS {}", date);
                 List<String> tracks = tracksForForeign(date);
                 for (String track : tracks) {
-                    processDateTrack(date, track);
+                    processDateTrack(date, track, FOREIGN_RESULT_SCRAPE_PAUSE_MIN_MS, FOREIGN_RESULT_SCRAPE_PAUSE_SPREAD_MS);
                 }
             }
         } finally {
@@ -730,6 +719,15 @@ public class AtgScraperService {
                                         "Chrome/125.0.0.0 Safari/537.36")
         );
 
+        ctx.route("**/*", route -> {
+            String resourceType = route.request().resourceType();
+            if ("image".equals(resourceType) || "media".equals(resourceType) || "font".equals(resourceType)) {
+                route.abort();
+            } else {
+                route.resume();
+            }
+        });
+
         ctx.addInitScript(""" 
                   () => {
                     try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch(e) {}
@@ -758,29 +756,35 @@ public class AtgScraperService {
     }
 
     private void processDateTrack(LocalDate date, String track) {
+        processDateTrack(date, track, RESULT_SCRAPE_PAUSE_MIN_MS, RESULT_SCRAPE_PAUSE_SPREAD_MS);
+    }
+
+    private void processDateTrack(LocalDate date, String track, int pauseMinMs, int pauseSpreadMs) {
         ensureContext();
 
         int consecutiveMisses = 0;
+        Page.NavigateOptions nav = new Page.NavigateOptions()
+                .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
+                .setTimeout(70_000);
+        String dateSlug = date.format(URL_DATE_FORMAT);
 
         for (int lap = 1; lap <= 15; lap++) {
 
             String base = "https://www.atg.se/spel/%s/%s/%s/lopp/%d/resultat";
-            String vUrl = String.format(base, date.format(URL_DATE_FORMAT), "vinnare", track, lap);
-            String pUrl = String.format(base, date.format(URL_DATE_FORMAT), "plats", track, lap);
-            String tUrl = String.format(base, date.format(URL_DATE_FORMAT), "trio", track, lap);
+            String vUrl = String.format(base, dateSlug, "vinnare", track, lap);
+            String pUrl = String.format(base, dateSlug, "plats", track, lap);
+            String tUrl = String.format(base, dateSlug, "trio", track, lap);
 
-            try (Page vPage = ctx.newPage();
-                 Page pPage = ctx.newPage();
-                 Page tPage = ctx.newPage()) {
-
-                Page.NavigateOptions nav = new Page.NavigateOptions()
-                        .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
-                        .setTimeout(70_000);
-
+            try (Page vPage = ctx.newPage()) {
                 vPage.navigate(vUrl, nav);
 
                 if (vPage.url().contains("/spel/kalender/")) {
                     log.info("🔸 Lap {} not found for track {} on {}, redirected to calendar, skipping", lap, track, date);
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
+
+                if (isUnexpectedResultRoute(vPage.url(), date, lap, track, "vinnare")) {
                     if (++consecutiveMisses >= 2) break;
                     continue;
                 }
@@ -807,57 +811,54 @@ public class AtgScraperService {
                             new Page.WaitForSelectorOptions().setTimeout(75_000));
                 }
 
-                vPage.waitForSelector(
-                        "button:has-text(\"Tillåt alla\"), button:has-text(\"Avvisa\"), tr[data-test-id^=horse-row]",
-                        new Page.WaitForSelectorOptions().setTimeout(75_000)
-                );
-
-                pPage.navigate(pUrl, nav);
-                tPage.navigate(tUrl, nav);
-
                 if (isCancelledRace(vPage)) {
                     log.info("🔸 Lap {} on {} {} is cancelled, skipping", lap, date, track);
                     if (++consecutiveMisses >= 2) break;
                     continue;
                 }
 
-                try {
-                    vPage.waitForSelector("tr[data-test-id^=horse-row]",
-                            new Page.WaitForSelectorOptions().setTimeout(75_000));
-                } catch (PlaywrightException e) {
-                    log.warn("⚠️  Playwright-fel på {}: {}", vUrl, e.getMessage());
-                    if (e.getMessage() != null && e.getMessage().contains("Timeout")) {
-                        if (++consecutiveMisses >= 2) break;
-                        continue;
-                    }
-                    break;
-                }
-
                 if (!isCorrectTrack(vPage, track, date)) return;
-                if (!isCorrectLap(vPage, lap, track, date) ||
-                        !isCorrectLap(pPage, lap, track, date) ||
-                        !isCorrectLap(tPage, lap, track, date)) {
+                if (!isCorrectLap(vPage, lap, track, date)) {
                     log.info("🔸 Lap {} missing on {} {}, continuing", lap, date, track);
                     if (++consecutiveMisses >= 2) break;
                     continue;
                 }
 
-                consecutiveMisses = 0;
+                try (Page pPage = ctx.newPage();
+                     Page tPage = ctx.newPage()) {
+                    pPage.navigate(pUrl, nav);
+                    tPage.navigate(tUrl, nav);
 
-                pPage.waitForSelector("tr[data-test-id^=horse-row]",
-                        new Page.WaitForSelectorOptions().setTimeout(75_000));
+                    if (isUnexpectedResultRoute(pPage.url(), date, lap, track, "plats") ||
+                            isUnexpectedResultRoute(tPage.url(), date, lap, track, "trio")) {
+                        if (++consecutiveMisses >= 2) break;
+                        continue;
+                    }
 
-                tPage.waitForSelector("text=\"Rätt kombination:\"",
-                        new Page.WaitForSelectorOptions()
-                                .setTimeout(75_000)
-                                .setState(WaitForSelectorState.ATTACHED));
+                    if (!isCorrectLap(pPage, lap, track, date) ||
+                            !isCorrectLap(tPage, lap, track, date)) {
+                        log.info("🔸 Lap {} missing on {} {}, continuing", lap, date, track);
+                        if (++consecutiveMisses >= 2) break;
+                        continue;
+                    }
 
-                Map<String, String> pMap = extractOddsMap(pPage, "[data-test-id=startlist-cell-podds]");
-                Map<String, String> trioMap = extractTrioMap(tPage);
+                    consecutiveMisses = 0;
 
-                parseAndPersist(vPage.content(), date, track, lap, pMap, trioMap);
+                    pPage.waitForSelector("tr[data-test-id^=horse-row]",
+                            new Page.WaitForSelectorOptions().setTimeout(75_000));
+
+                    tPage.waitForSelector("text=\"Rätt kombination:\"",
+                            new Page.WaitForSelectorOptions()
+                                    .setTimeout(75_000)
+                                    .setState(WaitForSelectorState.ATTACHED));
+
+                    Map<String, String> pMap = extractOddsMap(pPage, "[data-test-id=startlist-cell-podds]");
+                    Map<String, String> trioMap = extractTrioMap(tPage);
+
+                    parseAndPersist(vPage.content(), date, track, lap, pMap, trioMap);
+                }
                 try {
-                    Thread.sleep(600 + (int) (Math.random() * 1200));
+                    Thread.sleep(pauseMinMs + (int) (Math.random() * pauseSpreadMs));
                 } catch (InterruptedException ignored) {
                 }
             } catch (PlaywrightException e) {
@@ -986,6 +987,44 @@ public class AtgScraperService {
         return true;
     }
 
+    private record ResultatRoute(LocalDate date, String product, String trackSlug, int lap) {
+    }
+
+    private ResultatRoute parseResultatRoute(String url) {
+        if (url == null || url.isBlank()) return null;
+        Matcher m = RESULTAT_ROUTE_PATTERN.matcher(url);
+        if (!m.find()) return null;
+        try {
+            return new ResultatRoute(
+                    LocalDate.parse(m.group(1), URL_DATE_FORMAT),
+                    m.group(2),
+                    m.group(3).trim(),
+                    Integer.parseInt(m.group(4))
+            );
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean isUnexpectedResultRoute(String url, LocalDate expectedDate, int expectedLap,
+                                            String expectedTrack, String expectedProduct) {
+        ResultatRoute route = parseResultatRoute(url);
+        if (route == null) return false;
+
+        boolean unexpected = !expectedDate.equals(route.date())
+                || route.lap() != expectedLap
+                || !trackKey(expectedTrack).equals(trackKey(route.trackSlug()))
+                || !expectedProduct.equalsIgnoreCase(route.product());
+
+        if (unexpected) {
+            log.info("↪️  URL mismatch for {} {} {} lap {} -> landed at {} (product={}, date={}, track={}, lap={}), skipping",
+                    expectedDate, expectedTrack, expectedProduct, expectedLap,
+                    url, route.product(), route.date(), route.trackSlug(), route.lap());
+        }
+
+        return unexpected;
+    }
+
     private Map<String, String> extractOddsMap(Page page, String oddsSelector) {
         Map<String, String> map = new HashMap<>();
         for (Element tr : Jsoup.parse(page.content()).select("tr[data-test-id^=horse-row]")) {
@@ -1018,7 +1057,19 @@ public class AtgScraperService {
         Elements rows = Jsoup.parse(html).select("tr[data-test-id^=horse-row]");
         if (rows.isEmpty()) return;
 
-        List<ScrapedHorse> horsesToSave = new ArrayList<>();
+        String bankode = toKnownBankodOrNull(track);
+        if (bankode == null) {
+            log.warn("⚠️  Okänd bana '{}' -> skippar RESULTS (ScrapedHorse) helt", track);
+            return;
+        }
+
+        String lapValue = String.valueOf(lap);
+        Map<String, ScrapedHorse> existingByNumber = new HashMap<>();
+        for (ScrapedHorse existing : repo.findByDateAndTrackAndLap(date, bankode, lapValue)) {
+            existingByNumber.put(existing.getNumberOfHorse(), existing);
+        }
+
+        List<ScrapedHorse> horsesToSave = new ArrayList<>(rows.size());
 
         for (Element tr : rows) {
             Element place = tr.selectFirst("[data-test-id=horse-placement]");
@@ -1032,20 +1083,8 @@ public class AtgScraperService {
 
             String normalizedName = normalizeHorseNameSimple(name);
 
-            String bankode = toKnownBankodOrNull(track);
-            if (bankode == null) {
-                log.warn("⚠️  Okänd bana '{}' -> skippar RESULTS (ScrapedHorse) helt", track);
-                continue;
-            }
-
-            ScrapedHorseKey key = new ScrapedHorseKey(date, bankode, String.valueOf(lap), nr);
-
-            Optional<ScrapedHorse> existingHorseOpt = repo.findById(key);
-
-            ScrapedHorse horse;
-            if (existingHorseOpt.isPresent()) {
-                horse = existingHorseOpt.get();
-
+            ScrapedHorse horse = existingByNumber.get(nr);
+            if (horse != null) {
                 horse.setNameOfHorse(normalizedName);
                 horse.setPlacement(place.text().trim());
                 horse.setVOdds(vOdd.text().trim());
@@ -1053,7 +1092,7 @@ public class AtgScraperService {
                 horse.setTrioOdds(trioMap.getOrDefault(nr, ""));
             } else {
                 horse = ScrapedHorse.builder()
-                        .date(date).track(bankode).lap(String.valueOf(lap))
+                        .date(date).track(bankode).lap(lapValue)
                         .numberOfHorse(nr).nameOfHorse(normalizedName).placement(place.text().trim())
                         .vOdds(vOdd.text().trim())
                         .pOdds(pMap.getOrDefault(nr, ""))

@@ -15,11 +15,7 @@ public class TravScraperApplication implements CommandLineRunner {
     private final HorseWarningService horseWarningService;
     private final DoubleGangerService doubleGangerService;
 
-    public TravScraperApplication(
-            AtgScraperService service,
-            HorseWarningService horseWarningService,
-            DoubleGangerService doubleGangerService
-    ) {
+    public TravScraperApplication(AtgScraperService service, HorseWarningService horseWarningService, DoubleGangerService doubleGangerService) {
         this.service = service;
         this.horseWarningService = horseWarningService;
         this.doubleGangerService = doubleGangerService;
@@ -31,11 +27,11 @@ public class TravScraperApplication implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        //service.scrapeForeign();
+        //doubleGangerService.refreshDoubleGangers();
         service.scrapeFuture();
         service.scrapeResultatPopupsOnly();
         service.scrape();
+        service.scrapeForeign();
         horseWarningService.refreshWarnings(8);
-        doubleGangerService.refreshDoubleGangers();
     }
 }
