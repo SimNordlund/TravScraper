@@ -24,17 +24,17 @@ public class HorseWarningService {
 
     @Transactional
     public void refreshWarnings(int minStarts) {
-        log.info("🐴 HorseWarning: starting refresh (minStarts={})", minStarts);
+        log.info("HorseWarning: starting refresh (minStarts={})", minStarts);
 
         List<HorseStartSummary> bad = resultHorseRepo.findHorsesWithStartsLessThan(minStarts);
-        log.info("🐴 HorseWarning: found {} horses with starts < {}", bad.size(), minStarts);
+        log.info("HorseWarning: found {} horses with starts < {}", bad.size(), minStarts);
 
-        log.info("🐴 HorseWarning: deleting old rows from kontroll...");
+        log.info(" HorseWarning: deleting old rows from kontroll...");
         horseWarningRepo.deleteAllInBatch();
-        log.info("🐴 HorseWarning: delete done");
+        log.info("HorseWarning: delete done");
 
         if (bad.isEmpty()) {
-            log.info("🐴 HorseWarning: nothing to save, finished");
+            log.info("HorseWarning: nothing to save, finished");
             return;
         }
 
@@ -51,7 +51,7 @@ public class HorseWarningService {
             if (buffer.size() >= BATCH_SIZE) {
                 horseWarningRepo.saveAll(buffer);
                 saved += buffer.size();
-                log.info("🐴 HorseWarning: saved {} / {}", saved, bad.size());
+                log.info("HorseWarning: saved {} / {}", saved, bad.size());
                 buffer.clear();
             }
         }
@@ -61,6 +61,6 @@ public class HorseWarningService {
             saved += buffer.size();
         }
 
-        log.info("🐴 HorseWarning: finished, saved {} rows to kontroll", saved);
+        log.info("HorseWarning: finished, saved {} rows to kontroll", saved);
     }
 }
