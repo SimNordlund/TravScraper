@@ -18,7 +18,6 @@ import java.util.List;
 public class DoubleGangerService {
 
     private static final int BATCH_SIZE = 500;
-
     private final ResultHorseRepo resultHorseRepo;
     private final DoubleGangerRepo doubleGangerRepo;
 
@@ -52,7 +51,7 @@ public class DoubleGangerService {
             if (buffer.size() >= BATCH_SIZE) {
                 doubleGangerRepo.saveAll(buffer);
                 saved += buffer.size();
-                log.info("DoubleGanger: saved {} / {}", saved, candidates.size());
+                log.info("DoubleGanger XD: saved {} / {}", saved, candidates.size());
                 buffer.clear();
             }
         }
@@ -62,6 +61,6 @@ public class DoubleGangerService {
             saved += buffer.size();
         }
 
-        log.info("DoubleGanger: finished, saved {} rows to double_gangers", saved);
+        log.info("DoubleGanger XD: finished, saved {} rows to double_gangers", saved);
     }
 }
