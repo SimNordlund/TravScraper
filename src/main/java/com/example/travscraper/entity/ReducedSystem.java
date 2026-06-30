@@ -17,16 +17,22 @@ public class ReducedSystem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String streck;
+    @Column(name = "streck")
+    private Integer streck;
 
-    private String nr;
+    @Column(name = "nr")
+    private Integer nr;
 
-    private String lopp;
+    @Column(name = "lopp")
+    private Integer lopp;
 
+    @Column(name = "bankod", length = 20, nullable = false)
     private String banKod;
 
+    @Column(name = "startDatum")
     private String startDatum;
 
+    @Column(name = "streckTyp")
     private String streckTyp;
 
 }
