@@ -16,4 +16,17 @@ public class ReducedSystem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    private String streck;
+
+    private String nr;
+
+    private String lopp;
+
+    private String banKod;
+
+    private String startDatum;
+
+    private String streckTyp;
+
 }
