@@ -3,6 +3,8 @@ package com.example.travscraper.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(
         name = "reducedsystem"
@@ -17,8 +19,8 @@ public class ReducedSystem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "streck")
-    private Integer streck;
+    @Column(name = "streck", precision = 6, scale = 2)
+    private BigDecimal streck;
 
     @Column(name = "nr")
     private Integer nr;
