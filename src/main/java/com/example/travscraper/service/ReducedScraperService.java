@@ -37,7 +37,16 @@ public class ReducedScraperService {
     private static final String GAME_TYPE_V64 = "V64";
     private static final String GAME_TYPE_V65 = "V65";
     private static final String GAME_TYPE_GS75 = "GS75";
+    private static final String GAME_TYPE_V5 = "V5";
+    private static final String GAME_TYPE_V4 = "V4";
+    private static final String GAME_TYPE_V3 = "V3";
+    private static final List<String> DEFAULT_GAME_TYPES = List.of(
+            GAME_TYPE_V86, GAME_TYPE_V85, GAME_TYPE_V64, GAME_TYPE_V65, GAME_TYPE_GS75,
+            GAME_TYPE_V5, GAME_TYPE_V4, GAME_TYPE_V3
+    );
     private static final int MAX_DEPARTMENTS = 15;
+    private static final int CALENDAR_READY_TIMEOUT_MS = 10_000;
+    private static final int DEPARTMENT_READY_TIMEOUT_MS = 20_000;
     private static final Pattern STRECK_VALUE = Pattern.compile("(<)?\\s*(\\d{1,3})(?:[\\.,](\\d{1,2}))?\\s*%?");
     private static final String SEL_COOKIE_BUTTONS =
             "button:has-text(\"Tillåt alla\"):visible, " +
@@ -56,6 +65,10 @@ public class ReducedScraperService {
     private Playwright playwright;
     private Browser browser;
     private BrowserContext ctx;
+
+    public void scrapeAllReducedGames() {
+        scrapeGames(DEFAULT_GAME_TYPES);
+    }
 
     public void scrapeV86() {
         scrapeGame(GAME_TYPE_V86);
@@ -77,7 +90,23 @@ public class ReducedScraperService {
         scrapeGame(GAME_TYPE_GS75);
     }
 
+    public void scrapeV5() {
+        scrapeGame(GAME_TYPE_V5);
+    }
+
+    public void scrapeV4() {
+        scrapeGame(GAME_TYPE_V4);
+    }
+
+    public void scrapeV3() {
+        scrapeGame(GAME_TYPE_V3);
+    }
+
     private void scrapeGame(String gameType) {
+        scrapeGames(List.of(gameType));
+    }
+
+    private void scrapeGames(Collection<String> gameTypes) {
         if (!lock.tryLock()) {
             log.warn("Previous reduced-system scrape still running - skipping");
             return;
@@ -88,10 +117,15 @@ public class ReducedScraperService {
             LocalDate start = Optional.ofNullable(props.getStartDateReducedSystem())
                     .orElse(end);
 
-            String gameTypeUrl = gameType.toUpperCase(Locale.ROOT);
+            List<String> gameTypesUrl = gameTypes.stream()
+                    .filter(Objects::nonNull)
+                    .map(gameType -> gameType.toUpperCase(Locale.ROOT))
+                    .distinct()
+                    .toList();
+
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-                log.info("ReducedSystem: scanning {} for {}", date, gameTypeUrl);
-                List<GameTarget> targets = findGameTargetsOnCalendar(date, gameTypeUrl);
+                log.info("ReducedSystem: scanning {} for {}", date, gameTypesUrl);
+                List<GameTarget> targets = findGameTargetsOnCalendar(date, gameTypesUrl);
                 for (GameTarget target : targets) {
                     scrapeGameTarget(target);
                 }
@@ -101,7 +135,7 @@ public class ReducedScraperService {
         }
     }
 
-    private List<GameTarget> findGameTargetsOnCalendar(LocalDate date, String gameTypeUrl) {
+    private List<GameTarget> findGameTargetsOnCalendar(LocalDate date, Collection<String> gameTypesUrl) {
         ensureBrowser();
 
         String dateSlug = date.format(URL_DATE_FORMAT);
@@ -110,23 +144,33 @@ public class ReducedScraperService {
         try (Page page = ctx.newPage()) {
             page.navigate(url, navOptions());
             dismissCookiesIfPresent(page);
+            waitForCalendarReady(page);
 
-            try {
-                page.waitForSelector("table[aria-label='Spelkalender'], a[href*='/spel/']",
-                        new Page.WaitForSelectorOptions().setTimeout(30_000));
-            } catch (PlaywrightException ignored) {
+            String html = page.content();
+            List<GameTarget> allTargets = new ArrayList<>();
+            for (String gameTypeUrl : gameTypesUrl) {
+                List<GameTarget> targets = parseCalendarTargets(html, date, gameTypeUrl);
+                if (targets.isEmpty()) {
+                    log.info("ReducedSystem: no {} found on {}", gameTypeUrl, date);
+                } else {
+                    log.info("ReducedSystem: found {} {} target(s) on {}", targets.size(), gameTypeUrl, date);
+                    allTargets.addAll(targets);
+                }
             }
-
-            List<GameTarget> targets = parseCalendarTargets(page.content(), date, gameTypeUrl);
-            if (targets.isEmpty()) {
-                log.info("ReducedSystem: no {} found on {}", gameTypeUrl, date);
-            } else {
-                log.info("ReducedSystem: found {} {} target(s) on {}", targets.size(), gameTypeUrl, date);
-            }
-            return targets;
+            return allTargets;
         } catch (PlaywrightException e) {
-            log.warn("ReducedSystem: calendar scrape failed for {} {}: {}", gameTypeUrl, date, e.getMessage());
+            log.warn("ReducedSystem: calendar scrape failed for {}: {}", date, e.getMessage());
             return List.of();
+        }
+    }
+
+    private void waitForCalendarReady(Page page) {
+        try {
+            page.waitForSelector(
+                    "[data-test-id=calendar-section], table[aria-label=Spelkalender], a[href*=\"/spel/\"]",
+                    new Page.WaitForSelectorOptions().setTimeout(CALENDAR_READY_TIMEOUT_MS));
+        } catch (PlaywrightException ignored) {
+            // Calendar content is sometimes already present even when Playwright misses the selector.
         }
     }
 
@@ -169,14 +213,31 @@ public class ReducedScraperService {
 
     private void scrapeGameTarget(GameTarget target) {
         int misses = 0;
-        for (int avd = 1; avd <= MAX_DEPARTMENTS; avd++) {
+        boolean scrapedAny = false;
+        int maxDepartments = departmentsFor(target.gameTypeUrl());
+
+        for (int avd = 1; avd <= maxDepartments; avd++) {
             boolean scraped = scrapeDepartment(target, avd);
             if (scraped) {
+                scrapedAny = true;
                 misses = 0;
-            } else if (++misses >= 2) {
+            } else if (scrapedAny || ++misses >= 2) {
                 break;
             }
         }
+    }
+
+    private int departmentsFor(String gameTypeUrl) {
+        String gameType = gameTypeUrl == null ? "" : gameTypeUrl.toUpperCase(Locale.ROOT);
+        return switch (gameType) {
+            case GAME_TYPE_V86, GAME_TYPE_V85 -> 8;
+            case GAME_TYPE_V64, GAME_TYPE_V65 -> 6;
+            case GAME_TYPE_GS75 -> 7;
+            case GAME_TYPE_V5 -> 5;
+            case GAME_TYPE_V4 -> 4;
+            case GAME_TYPE_V3 -> 3;
+            default -> MAX_DEPARTMENTS;
+        };
     }
 
     private boolean scrapeDepartment(GameTarget target, int avd) {
@@ -203,12 +264,12 @@ public class ReducedScraperService {
 
             ElementHandle first = page.waitForSelector(
                     SEL_COOKIE_BUTTONS + ", tr[data-test-id^=horse-row]",
-                    new Page.WaitForSelectorOptions().setTimeout(60_000));
+                    new Page.WaitForSelectorOptions().setTimeout(DEPARTMENT_READY_TIMEOUT_MS));
 
             if (first != null && "BUTTON".equalsIgnoreCase(String.valueOf(first.evaluate("e => e.tagName")))) {
                 first.click();
                 page.waitForSelector("tr[data-test-id^=horse-row]",
-                        new Page.WaitForSelectorOptions().setTimeout(60_000));
+                        new Page.WaitForSelectorOptions().setTimeout(DEPARTMENT_READY_TIMEOUT_MS));
             }
 
             int saved = parseAndPersistDepartment(page.content(), target, avd);
@@ -221,7 +282,12 @@ public class ReducedScraperService {
                     saved, target.date(), target.gameTypeUrl(), target.trackSlug(), avd);
             return true;
         } catch (PlaywrightException e) {
-            log.warn("ReducedSystem: Playwright error on {}: {}", url, e.getMessage());
+            String message = e.getMessage();
+            if (message != null && message.contains("Timeout")) {
+                log.info("ReducedSystem: no horse rows found on {}, skipping", url);
+            } else {
+                log.warn("ReducedSystem: Playwright error on {}: {}", url, message);
+            }
             return false;
         }
     }

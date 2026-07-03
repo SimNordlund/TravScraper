@@ -12,7 +12,6 @@ import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.microsoft.playwright.options.WaitUntilState;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -583,8 +582,9 @@ public class AtgScraperService {
         return slugs;
     }
 
-    @PostConstruct
-    void initBrowser() {
+    private void ensureBrowser() {
+        if (browser != null) return;
+
         playwright = Playwright.create();
         browser = playwright.chromium().launch(
                 new BrowserType.LaunchOptions()
@@ -705,6 +705,7 @@ public class AtgScraperService {
 
     private void ensureContext() {
         if (ctx != null) return;
+        ensureBrowser();
 
         ctx = browser.newContext(
                 new Browser.NewContextOptions()

@@ -27,5 +27,5 @@ public class ScraperProperties {
     private LocalDate endDateResultatPopup = LocalDate.now().plusDays(1);
 
     private LocalDate startDateReducedSystem = LocalDate.now().plusDays(1);
-    private LocalDate endDateReducedSystem = LocalDate.now().plusDays(7);
+    private LocalDate endDateReducedSystem = LocalDate.now().plusDays(3);
 }

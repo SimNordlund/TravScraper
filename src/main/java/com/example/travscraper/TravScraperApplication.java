@@ -31,11 +31,7 @@ public class TravScraperApplication implements CommandLineRunner {
     @Override
     public void run(String... args) {
         //doubleGangerService.refreshDoubleGangers();
-        reducedScraperService.scrapeV86();
-        reducedScraperService.scrapeV85();
-        reducedScraperService.scrapeV64();
-        reducedScraperService.scrapeV65();
-        reducedScraperService.scrapeGS75();
+        reducedScraperService.scrapeAllReducedGames();
         //service.scrapeFuture();
         //service.scrapeResultatPopupsOnly();
         //service.scrape();
