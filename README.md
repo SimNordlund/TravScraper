@@ -58,3 +58,44 @@ Litet randomized sleep mellan lopp för bättre “hövlighet” mot sajten.
 Spring Boot Starter (core), Data JPA, WebFlux (framtidssäkring för ev. API/feeds).
 
 Playwright, Jsoup, Lombok.
+
+*Fly.io one-shot Machine*
+
+The scraper is configured as a temporary Fly Machine job. The Docker image runs:
+
+```bash
+java -jar /app/app.jar
+```
+
+Spring Boot is configured with `spring.main.web-application-type=none`, so the scraper does not start a permanent web server. The application exits after the `CommandLineRunner` completes, and the GitHub workflow starts it with `--rm` and `--restart no` so Fly deletes the Machine after completion and does not restart it.
+
+The workflow uses:
+
+```bash
+docker.io/simnordlund/travscraper:latest
+```
+
+If your Docker Hub namespace differs, update `SCRAPER_IMAGE` in `.github/workflows/run-scraper.yml`.
+
+Initial Fly setup:
+
+```bash
+fly apps create travscraper
+fly secrets set DATABASE_URL='jdbc:postgresql://...' DATABASE_USERNAME='...' DATABASE_PASSWORD='...' --app travscraper
+fly tokens create deploy -a travscraper
+```
+
+Set this GitHub repository secret from the token output:
+
+```text
+FLY_API_TOKEN
+```
+
+Keep database/API credentials as Fly app secrets. The GitHub Action only needs `FLY_API_TOKEN`.
+
+Rebuild and push the Docker image after code changes:
+
+```bash
+docker build -t docker.io/simnordlund/travscraper:latest .
+docker push docker.io/simnordlund/travscraper:latest
+```

@@ -6,11 +6,11 @@ import com.example.travscraper.service.ReducedScraperService;
 import com.example.travscraper.service.ReducedTrioScraping;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.context.ConfigurableApplicationContext;
 
 @SpringBootApplication
-@EnableScheduling
 public class TravScraperApplication implements CommandLineRunner {
 
     private final AtgScraperService service;
@@ -28,7 +28,11 @@ public class TravScraperApplication implements CommandLineRunner {
     }
 
     public static void main(String[] args) {
-        SpringApplication.run(TravScraperApplication.class, args);
+        SpringApplication app = new SpringApplication(TravScraperApplication.class);
+        app.setWebApplicationType(WebApplicationType.NONE);
+        ConfigurableApplicationContext context = app.run(args);
+        int exitCode = SpringApplication.exit(context);
+        System.exit(exitCode);
     }
 
     @Override
