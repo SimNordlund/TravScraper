@@ -17,7 +17,7 @@ concurrency:
 
 env:
   FLY_APP_NAME: travscraper
-  SCRAPER_IMAGE: docker.io/simnordlund/travscraper:latest
+  SCRAPER_IMAGE: docker.io/simonnordlund/travscraper:latest
 
 jobs:
   scrape:
