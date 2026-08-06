@@ -26,6 +26,16 @@ public interface ResultHorseRepo extends JpaRepository<ResultHorse, Long> {
             """)
     List<HorseStartSummary> findHorsesWithStartsLessThan(@Param("minStarts") long minStarts);
 
+    @Query("""
+                select r
+                from ResultHorse r
+                where r.placering is not null
+                  and r.placering not in (15, 99)
+                  and r.tid = 99.0
+                order by r.datum, r.bankod, r.lopp, r.nr, r.namn
+            """)
+    List<ResultHorse> findHorsesWithPlacementAndTid99();
+
     @Query(value = """
                 select distinct
                     r1.datum as datum,
