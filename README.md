@@ -7,7 +7,7 @@ Syftet: en stabil, låg-friktion scraper som hämtar travdata från atg.se och l
 
 Process: Spring Boot-applikation (Java 17) som kör två jobb:
 
-Resultat: läser avslutade lopp (placering, v-odds, p-odds, trio-odds).
+Resultat: läser avslutade lopp (placering, v-odds, p-odds, trio-odds, tvilling-odds).
 
 Framtida startlistor: läser kommande lopp (startnr, hästnamn, v-odds).
 
@@ -49,9 +49,9 @@ future_horse: bigserial PK + unik constraint på (date, track, lap, number_of_ho
 
 Bankod-mappning (FULLNAME_TO_BANKODE) normaliserar URL-slugs till interna travkoder (t ex solvalla → S, åby → Å).
 
-Två @Scheduled-jobb på 23:55 Europe/Stockholm.
+Schemaläggning sker externt via GitHub Actions, som startar en temporär Fly Machine.
 
-CommandLineRunner kan trigga scraping vid uppstart (enkelt att toggla).
+ApplicationRunner kör en explicit one-off scraper mode med `--scraper.job=daily`.
 
 Litet randomized sleep mellan lopp för bättre “hövlighet” mot sajten.
 
@@ -61,13 +61,15 @@ Playwright, Jsoup, Lombok.
 
 *Fly.io one-shot Machine*
 
-The scraper is configured as a temporary Fly Machine job. The Docker image runs:
+The scraper is configured as a temporary Fly Machine job, not a permanent web app.
+
+The Java command is:
 
 ```bash
-java -jar /app/app.jar
+java -jar app.jar --scraper.job=daily --spring.main.web-application-type=none
 ```
 
-Spring Boot is configured with `spring.main.web-application-type=none`, so the scraper does not start a permanent web server. The application exits after the `CommandLineRunner` completes, and the GitHub workflow starts it with `--rm` and `--restart no` so Fly deletes the Machine after completion and does not restart it.
+The `daily` job runs the scraper once and exits. If a top-level scraper step throws, the process exits non-zero. Spring Boot is also configured with `spring.main.web-application-type=none`, and the app does not enable an internal scheduler.
 
 The workflow uses:
 
@@ -75,7 +77,7 @@ The workflow uses:
 docker.io/simnordlund/travscraper:latest
 ```
 
-If your Docker Hub namespace differs, update `SCRAPER_IMAGE` in `.github/workflows/run-scraper.yml`.
+If your Docker Hub namespace differs, update `SCRAPER_IMAGE` in `.github/workflows/run-scraper.yml` and use the same image name in the build/push commands.
 
 Initial Fly setup:
 
@@ -91,7 +93,7 @@ Set this GitHub repository secret from the token output:
 FLY_API_TOKEN
 ```
 
-Keep database/API credentials as Fly app secrets. The GitHub Action only needs `FLY_API_TOKEN`.
+Store database/API credentials as Fly app secrets. The GitHub Action only needs `FLY_API_TOKEN`.
 
 Rebuild and push the Docker image after code changes:
 
@@ -99,3 +101,24 @@ Rebuild and push the Docker image after code changes:
 docker build -t docker.io/simnordlund/travscraper:latest .
 docker push docker.io/simnordlund/travscraper:latest
 ```
+
+Manual Fly test:
+
+```bash
+run_output="$(flyctl machine run docker.io/simnordlund/travscraper:latest \
+  --app travscraper \
+  --region arn \
+  --rm \
+  --restart no \
+  --vm-memory 2048 \
+  --vm-cpus 2 \
+  --detach \
+  java -jar app.jar --scraper.job=daily --spring.main.web-application-type=none)"
+
+echo "$run_output"
+
+machine_id="$(echo "$run_output" | awk '/Machine ID:/ {print $3; exit}')"
+flyctl machine wait "$machine_id" --app travscraper --state started --wait-timeout 5m
+```
+
+The workflow uses `--detach` plus `machine wait` because Fly can take more than 60 seconds to pull/start a large Docker image. Without that, GitHub Actions can show a false failure even though the Fly Machine actually starts. The Machine still uses `--rm` and `--restart no`, so Fly deletes it after the scraper exits and will not restart it.

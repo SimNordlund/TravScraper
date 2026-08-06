@@ -2,9 +2,10 @@ name: Run scraper on Fly
 
 on:
   schedule:
-    # GitHub cron is UTC. These four UTC times cover 09:00 and 23:00
-    # Europe/Stockholm across both CET and CEST.
-    - cron: "0 7,8,21,22 * * *"
+    # GitHub cron is UTC.
+    # Swedish summer time: 09:00 and 23:00 Europe/Stockholm.
+    # Swedish winter time: change to "0 8,22 * * *"
+    - cron: "0 7,21 * * *"
   workflow_dispatch:
 
 permissions:
@@ -24,34 +25,34 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - name: Check Stockholm run time
-        id: schedule
-        shell: bash
-        run: |
-          hour="$(TZ=Europe/Stockholm date +'%H')"
-          now="$(TZ=Europe/Stockholm date +'%Y-%m-%d %H:%M:%S %Z')"
-          echo "Stockholm time: $now"
-
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" || "$hour" == "09" || "$hour" == "23" ]]; then
-            echo "run_scraper=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run_scraper=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping because this UTC trigger is only for DST coverage."
-          fi
-
       - name: Set up flyctl
-        if: steps.schedule.outputs.run_scraper == 'true'
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Run scraper Machine
-        if: steps.schedule.outputs.run_scraper == 'true'
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          flyctl machine run "$SCRAPER_IMAGE" \
+          set -euo pipefail
+
+          run_output="$(flyctl machine run "$SCRAPER_IMAGE" \
             --app "$FLY_APP_NAME" \
             --region arn \
             --rm \
             --restart no \
             --vm-memory 2048 \
-            --vm-cpus 2
+            --vm-cpus 2 \
+            --detach \
+            java -jar app.jar --scraper.job=daily --spring.main.web-application-type=none)"
+
+          echo "$run_output"
+
+          machine_id="$(echo "$run_output" | awk '/Machine ID:/ {print $3; exit}')"
+          if [ -z "$machine_id" ]; then
+            echo "Could not find Machine ID in flyctl output" >&2
+            exit 1
+          fi
+
+          flyctl machine wait "$machine_id" \
+            --app "$FLY_APP_NAME" \
+            --state started \
+            --wait-timeout 5m

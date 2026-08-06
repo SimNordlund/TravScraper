@@ -33,4 +33,5 @@ public class ScrapedHorse {
     private String vOdds;
     private String pOdds;
     private String trioOdds;
+    private String tvillingOdds;
 }

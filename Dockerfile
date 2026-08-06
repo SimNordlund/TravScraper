@@ -22,4 +22,4 @@ WORKDIR /app
 
 COPY --from=build /build/target/TravScraper-0.0.1-SNAPSHOT.jar app.jar
 
-CMD ["java", "-jar", "/app/app.jar"]
+CMD ["java", "-jar", "app.jar", "--scraper.job=daily", "--spring.main.web-application-type=none"]

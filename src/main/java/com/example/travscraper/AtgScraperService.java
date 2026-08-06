@@ -62,7 +62,7 @@ public class AtgScraperService {
     private static final Pattern TRACK_LAP_PATTERN = Pattern.compile("^\\s*(.+?)\\s*-\\s*(\\d+)\\s*$");
     private static final Pattern DIGITS_ONLY = Pattern.compile("(\\d{6,8})");
     private static final Pattern RESULTAT_ROUTE_PATTERN = Pattern.compile(
-            "^https?://www\\.atg\\.se/spel/(\\d{4}-\\d{2}-\\d{2})/(vinnare|plats|trio)/([^/]+)/lopp/(\\d+)/resultat(?:[/?#].*)?$"
+            "^https?://www\\.atg\\.se/spel/(\\d{4}-\\d{2}-\\d{2})/(vinnare|plats|trio|tvilling)/([^/]+)/lopp/(\\d+)/resultat(?:[/?#].*)?$"
     );
     private static final Pattern RESULT_HREF_PATTERN = Pattern.compile(
             "/spel/(\\d{4}-\\d{2}-\\d{2})/vinnare/([^/]+)/lopp/(\\d+)/resultat"
@@ -550,6 +550,10 @@ public class AtgScraperService {
         }
         List<String> slugs = new ArrayList<>();
         for (String code : codes) {
+            if (isForeignTrackCode(code)) {
+                log.info("↪️  Skipping foreign track code {} in regular results scrape for {}", code, date);
+                continue;
+            }
             String slug = BANKODE_TO_SLUG.get(code);
             if (slug == null || slug.isBlank()) {
                 log.warn("⚠️  Okänd bankod '{}' för {}, hoppar den banan", code, date);
@@ -562,6 +566,12 @@ public class AtgScraperService {
 
 
     //Vaska banor här
+    private static boolean isForeignTrackCode(String code) {
+        if (code == null || code.isBlank()) return false;
+        String normalized = code.trim();
+        return FOREIGN_TRACK_CODES.stream().anyMatch(foreign -> foreign.equalsIgnoreCase(normalized));
+    }
+
     private List<String> tracksForForeign(LocalDate date) {
         List<String> codes = FOREIGN_TRACK_CODES;
 
@@ -774,7 +784,7 @@ public class AtgScraperService {
             String vUrl = String.format(base, dateSlug, "vinnare", track, lap);
             String pUrl = String.format(base, dateSlug, "plats", track, lap);
             String tUrl = String.format(base, dateSlug, "trio", track, lap);
-
+            String tvillingUrl = String.format(base, dateSlug, "tvilling", track, lap);
             try (Page vPage = ctx.newPage()) {
                 vPage.navigate(vUrl, nav);
 
@@ -785,6 +795,12 @@ public class AtgScraperService {
                 }
 
                 if (isUnexpectedResultRoute(vPage.url(), date, lap, track, "vinnare")) {
+                    if (++consecutiveMisses >= 2) break;
+                    continue;
+                }
+
+                ResultatRoute validatedRoute = parseResultatRoute(vPage.url());
+                if (validatedRoute == null) {
                     if (++consecutiveMisses >= 2) break;
                     continue;
                 }
@@ -825,18 +841,22 @@ public class AtgScraperService {
                 }
 
                 try (Page pPage = ctx.newPage();
-                     Page tPage = ctx.newPage()) {
+                     Page tPage = ctx.newPage();
+                     Page tvillingPage = ctx.newPage()) {
                     pPage.navigate(pUrl, nav);
                     tPage.navigate(tUrl, nav);
+                    tvillingPage.navigate(tvillingUrl, nav);
 
                     if (isUnexpectedResultRoute(pPage.url(), date, lap, track, "plats") ||
-                            isUnexpectedResultRoute(tPage.url(), date, lap, track, "trio")) {
+                            isUnexpectedResultRoute(tPage.url(), date, lap, track, "trio") ||
+                            isUnexpectedResultRoute(tvillingPage.url(), date, lap, track, "tvilling")) {
                         if (++consecutiveMisses >= 2) break;
                         continue;
                     }
 
                     if (!isCorrectLap(pPage, lap, track, date) ||
-                            !isCorrectLap(tPage, lap, track, date)) {
+                            !isCorrectLap(tPage, lap, track, date) ||
+                            !isCorrectLap(tvillingPage, lap, track, date)) {
                         log.info("🔸 Lap {} missing on {} {}, continuing", lap, date, track);
                         if (++consecutiveMisses >= 2) break;
                         continue;
@@ -847,15 +867,14 @@ public class AtgScraperService {
                     pPage.waitForSelector("tr[data-test-id^=horse-row]",
                             new Page.WaitForSelectorOptions().setTimeout(75_000));
 
-                    tPage.waitForSelector("text=\"Rätt kombination:\"",
-                            new Page.WaitForSelectorOptions()
-                                    .setTimeout(75_000)
-                                    .setState(WaitForSelectorState.ATTACHED));
+                    waitForCombinationOdds(tPage);
+                    waitForCombinationOdds(tvillingPage);
 
                     Map<String, String> pMap = extractOddsMap(pPage, "[data-test-id=startlist-cell-podds]");
-                    Map<String, String> trioMap = extractTrioMap(tPage);
+                    Map<String, String> trioMap = extractCombinationOddsMap(tPage);
+                    Map<String, String> tvillingMap = extractCombinationOddsMap(tvillingPage);
 
-                    parseAndPersist(vPage.content(), date, track, lap, pMap, trioMap);
+                    parseAndPersist(vPage.content(), date, validatedRoute.trackSlug(), lap, pMap, trioMap, tvillingMap);
                 }
                 try {
                     Thread.sleep(pauseMinMs + (int) (Math.random() * pauseSpreadMs));
@@ -1009,7 +1028,11 @@ public class AtgScraperService {
     private boolean isUnexpectedResultRoute(String url, LocalDate expectedDate, int expectedLap,
                                             String expectedTrack, String expectedProduct) {
         ResultatRoute route = parseResultatRoute(url);
-        if (route == null) return false;
+        if (route == null) {
+            log.info("↪️  Unrecognized ATG result URL for {} {} {} lap {} -> landed at {}, skipping",
+                    expectedDate, expectedTrack, expectedProduct, expectedLap, url);
+            return true;
+        }
 
         boolean unexpected = !expectedDate.equals(route.date())
                 || route.lap() != expectedLap
@@ -1037,22 +1060,42 @@ public class AtgScraperService {
         return map;
     }
 
-    private Map<String, String> extractTrioMap(Page page) {
+    private void waitForCombinationOdds(Page page) {
+        page.waitForSelector("text=\"Odds:\"",
+                new Page.WaitForSelectorOptions()
+                        .setTimeout(75_000)
+                        .setState(WaitForSelectorState.ATTACHED));
+    }
+
+    private Map<String, String> extractCombinationOddsMap(Page page) {
         Map<String, String> map = new HashMap<>();
         Document doc = Jsoup.parse(page.content());
 
-        Element comboLabel = doc.selectFirst("span:matchesOwn(^\\s*Rätt\\skombination:?)");
-        Element oddsLabel = doc.selectFirst("span:matchesOwn(^\\s*Odds:?)");
+        Element comboLabel = doc.selectFirst("span:matchesOwn((?iu)^\\s*(?:Rätt\\s+)?kombination:?)");
+        Element oddsLabel = doc.selectFirst("span:matchesOwn((?iu)^\\s*Odds:?)");
         if (comboLabel == null || oddsLabel == null) return map;
 
-        String combo = comboLabel.parent().selectFirst("span[class*=\"--value\"]").text().trim();
-        String odds = oddsLabel.parent().selectFirst("span[class*=\"--value\"]").text().trim();
-        Arrays.stream(combo.split("-")).forEach(n -> map.put(n, odds));
+        String combo = resultOverviewValue(comboLabel);
+        String odds = resultOverviewValue(oddsLabel);
+        if (combo.isBlank() || odds.isBlank()) return map;
+
+        Arrays.stream(combo.split("\\D+"))
+                .filter(n -> !n.isBlank())
+                .forEach(n -> map.put(n, odds));
         return map;
     }
 
+    private String resultOverviewValue(Element label) {
+        Element parent = label.parent();
+        if (parent == null) return "";
+
+        Element value = parent.selectFirst("span[class*=\"--value\"]");
+        return value != null ? value.text().trim() : "";
+    }
+
     private void parseAndPersist(String html, LocalDate date, String track, int lap,
-                                 Map<String, String> pMap, Map<String, String> trioMap) {
+                                 Map<String, String> pMap, Map<String, String> trioMap,
+                                 Map<String, String> tvillingMap) {
 
         Elements rows = Jsoup.parse(html).select("tr[data-test-id^=horse-row]");
         if (rows.isEmpty()) return;
@@ -1090,6 +1133,7 @@ public class AtgScraperService {
                 horse.setVOdds(vOdd.text().trim());
                 horse.setPOdds(pMap.getOrDefault(nr, ""));
                 horse.setTrioOdds(trioMap.getOrDefault(nr, ""));
+                horse.setTvillingOdds(tvillingMap.getOrDefault(nr, ""));
             } else {
                 horse = ScrapedHorse.builder()
                         .date(date).track(bankode).lap(lapValue)
@@ -1097,6 +1141,7 @@ public class AtgScraperService {
                         .vOdds(vOdd.text().trim())
                         .pOdds(pMap.getOrDefault(nr, ""))
                         .trioOdds(trioMap.getOrDefault(nr, ""))
+                        .tvillingOdds(tvillingMap.getOrDefault(nr, ""))
                         .build();
             }
 
