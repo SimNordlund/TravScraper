@@ -4,6 +4,7 @@ import com.example.travscraper.service.DoubleGangerService;
 import com.example.travscraper.service.HorseWarningService;
 import com.example.travscraper.service.ReducedScraperService;
 import com.example.travscraper.service.ReducedTrioScraping;
+import com.example.travscraper.service.Tid99WarningService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -26,13 +27,15 @@ public class TravScraperApplication implements ApplicationRunner {
     private final DoubleGangerService doubleGangerService;
     private final ReducedScraperService reducedScraperService;
     private final ReducedTrioScraping reducedTrioScraping;
+    private final Tid99WarningService tid99WarningService;
 
-    public TravScraperApplication(AtgScraperService service, HorseWarningService horseWarningService, DoubleGangerService doubleGangerService, ReducedScraperService reducedScraperService, ReducedTrioScraping reducedTrioScraping) {
+    public TravScraperApplication(AtgScraperService service, HorseWarningService horseWarningService, DoubleGangerService doubleGangerService, ReducedScraperService reducedScraperService, ReducedTrioScraping reducedTrioScraping, Tid99WarningService tid99WarningService) {
         this.service = service;
         this.horseWarningService = horseWarningService;
         this.doubleGangerService = doubleGangerService;
         this.reducedScraperService = reducedScraperService;
         this.reducedTrioScraping = reducedTrioScraping;
+        this.tid99WarningService = tid99WarningService;
     }
 
     public static void main(String[] args) {
@@ -80,14 +83,16 @@ public class TravScraperApplication implements ApplicationRunner {
     }
 
     private void runDailyJob() {
-        //doubleGangerService.refreshDoubleGangers();
-        runStep("reduced games", reducedScraperService::scrapeAllReducedGames);
-        runStep("reduced trio", reducedTrioScraping::scrapeTrio);
-        runStep("future starts", service::scrapeFuture);
-        runStep("result popups", service::scrapeResultatPopupsOnly);
-        runStep("results", service::scrape);
-        runStep("foreign results", service::scrapeForeign);
-        runStep("horse warnings", () -> horseWarningService.refreshWarnings(8));
+
+        //runStep("reduced games", reducedScraperService::scrapeAllReducedGames);
+        //runStep("reduced trio", reducedTrioScraping::scrapeTrio);
+        //runStep("future starts", service::scrapeFuture);
+        //runStep("result popups", service::scrapeResultatPopupsOnly);
+        //runStep("results", service::scrape);
+        //runStep("foreign results", service::scrapeForeign);
+        //runStep("double gangers", doubleGangerService::refreshDoubleGangers);
+       // runStep("horse warnings", () -> horseWarningService.refreshWarnings(8));
+        runStep("tid 99 warnings", tid99WarningService::refreshTid99Warnings);
     }
 
     private void runStep(String name, ScraperStep step) {
