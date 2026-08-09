@@ -83,15 +83,14 @@ public class TravScraperApplication implements ApplicationRunner {
     }
 
     private void runDailyJob() {
-
-        //runStep("reduced games", reducedScraperService::scrapeAllReducedGames);
-        //runStep("reduced trio", reducedTrioScraping::scrapeTrio);
-        //runStep("future starts", service::scrapeFuture);
-        //runStep("result popups", service::scrapeResultatPopupsOnly);
-        //runStep("results", service::scrape);
-        //runStep("foreign results", service::scrapeForeign);
-        //runStep("double gangers", doubleGangerService::refreshDoubleGangers);
-       // runStep("horse warnings", () -> horseWarningService.refreshWarnings(8));
+        runStep("reduced games", reducedScraperService::scrapeAllReducedGames);
+        runStep("reduced trio", reducedTrioScraping::scrapeTrio);
+        runStep("future starts", service::scrapeFuture);
+        runStep("result popups", service::scrapeResultatPopupsOnly);
+        runStep("results", service::scrape);
+        runStep("foreign results", service::scrapeForeign);
+        runStep("double gangers", doubleGangerService::refreshDoubleGangers);
+        runStep("horse warnings", () -> horseWarningService.refreshWarnings(8));
         runStep("tid 99 warnings", tid99WarningService::refreshTid99Warnings);
     }
 

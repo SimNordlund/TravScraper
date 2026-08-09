@@ -1,11 +1,6 @@
 name: Run scraper on Fly
 
 on:
-  schedule:
-    # GitHub cron is UTC.
-    # Swedish summer time: 09:00 and 23:00 Europe/Stockholm.
-    # Swedish winter time: change to "0 8,22 * * *"
-    - cron: "0 7,21 * * *"
   workflow_dispatch:
 
 permissions:
