@@ -2247,7 +2247,12 @@ public class AtgScraperService {
         String vOddsUpper = vOddsNorm.toUpperCase(Locale.ROOT).replace(".", "").trim();
         boolean isEj = "EJ".equals(vOddsUpper);
 
-        Integer parsedOdds = isEj ? 99 : parseOddsToInt(vOddsNorm);
+        Integer parsedOdds;
+        if (isEj) {
+            parsedOdds = 99;
+        } else {
+            parsedOdds = parseOddsToInt(vOddsNorm);
+        }
         if (parsedOdds == null) return null;
 
         int datum = toYyyymmdd(date);
