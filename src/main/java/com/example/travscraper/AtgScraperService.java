@@ -1983,8 +1983,7 @@ public class AtgScraperService {
             String startmetod = tidInfo.startmetod();
             String galopp = tidInfo.galopp();
 
-            Integer prisRaw = extractPrisFromTds(tds, distIdx);
-            Integer pris = (prisRaw != null ? prisRaw : 0);
+            Integer pris = extractPrisFromTds(tds, distIdx);
 
             Integer odds = extractOddsFromTds(tds, distIdx);
 
@@ -2019,7 +2018,7 @@ public class AtgScraperService {
             if (galopp != null && !galopp.isBlank()) rh.setGalopp(galopp);
 
             Integer existingPris = rh.getPris();
-            if (existingPris == null || !Objects.equals(existingPris, pris)) {
+            if (pris != null && pris > 0 && !Objects.equals(existingPris, pris)) {
                 rh.setPris(pris);
             }
             rh.setOdds(odds);
@@ -2064,7 +2063,7 @@ public class AtgScraperService {
 
                     Integer newPris = rh.getPris();
                     Integer oldPris = existing.getPris();
-                    if (oldPris == null || !Objects.equals(oldPris, newPris)) {
+                    if (newPris != null && newPris > 0 && !Objects.equals(oldPris, newPris)) {
                         existing.setPris(newPris);
                     }
 
