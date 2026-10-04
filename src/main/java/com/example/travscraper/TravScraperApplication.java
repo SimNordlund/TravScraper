@@ -86,10 +86,10 @@ public class TravScraperApplication implements ApplicationRunner {
     }
 
     private void runDailyJob() {
-        runStep("future starts", service::scrapeFuture);
-        runStep("result popups", service::scrapeResultatPopupsOnly);
         runStep("reduced games", reducedScraperService::scrapeAllReducedGames);
         runStep("reduced trio", reducedTrioScraping::scrapeTrio);
+        runStep("future starts", service::scrapeFuture);
+        runStep("result popups", service::scrapeResultatPopupsOnly);
         runStep("results", service::scrape);
         runStep("foreign results", service::scrapeForeign);
         runStep("double gangers", doubleGangerService::refreshDoubleGangers);

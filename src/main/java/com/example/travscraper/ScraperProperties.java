@@ -10,7 +10,6 @@ import java.time.LocalDate;
 @Configuration
 @ConfigurationProperties(prefix = "scraper")
 @Getter
-
 @Setter
 public class ScraperProperties {
 
