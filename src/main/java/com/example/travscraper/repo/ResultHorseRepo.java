@@ -53,4 +53,19 @@ public interface ResultHorseRepo extends JpaRepository<ResultHorse, Long> {
                   and r2.bankod is not null
             """, nativeQuery = true)
     List<DoubleGangerCandidate> findDoubleGangerCandidates();
+
+    @Query("""
+                select r
+                from ResultHorse r
+                where r.datum = :datum
+                  and r.namn is not null
+                  and trim(r.namn) <> ''
+                  and exists (
+                      select d.id
+                      from DoubleGangers d
+                      where d.horseName = r.namn
+                  )
+                order by r.datum, r.bankod, r.lopp, r.nr, r.namn
+            """)
+    List<ResultHorse> findHorsesWithDoubleGangerOnDate(@Param("datum") Integer datum);
 }
