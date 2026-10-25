@@ -89,17 +89,18 @@ public class TravScraperApplication implements ApplicationRunner {
     }
 
     private void runDailyJob() {
-       // runStep("reduced games", reducedScraperService::scrapeAllReducedGames);
-       // runStep("reduced trio", reducedTrioScraping::scrapeTrio);
-        runStep("future starts", service::scrapeFuture);
-        runStep("result popups", service::scrapeResultatPopupsOnly);
-        runStep("results", service::scrape);
+    //    runStep("reduced games", reducedScraperService::scrapeAllReducedGames);
+    //    runStep("reduced trio", reducedTrioScraping::scrapeTrio);
+    //    runStep("future starts", service::scrapeFuture);
+    //    runStep("result popups", service::scrapeResultatPopupsOnly);
+
+        runStep("results", service::scrape); //2026-01-31
         runStep("foreign results", service::scrapeForeign);
         runStep("double gangers", doubleGangerService::refreshDoubleGangers);
-        runStep("double ganger warnings", doubleGangerWarningService::refreshDoubleGangerWarnings);
-       // runStep("horse warnings", () -> horseWarningService.refreshWarnings(8));
-       // runStep("tid 99 warnings", tid99WarningService::refreshTid99Warnings);
-      //  runStep("RIO calculation", rioCalculationService::CalculateRio);
+        runStep("horse warnings", () -> horseWarningService.refreshWarnings(8));
+        runStep("tid 99 warnings", tid99WarningService::refreshTid99Warnings);
+    //    runStep("RIO calculation", rioCalculationService::CalculateRio);
+        runStep("today's horse warnings", doubleGangerWarningService::refreshDoubleGangerWarnings);
     }
 
     private void runStep(String name, ScraperStep step) {

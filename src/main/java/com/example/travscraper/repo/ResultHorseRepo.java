@@ -54,18 +54,39 @@ public interface ResultHorseRepo extends JpaRepository<ResultHorse, Long> {
             """, nativeQuery = true)
     List<DoubleGangerCandidate> findDoubleGangerCandidates();
 
-    @Query("""
-                select r
-                from ResultHorse r
-                where r.datum = :datum
-                  and r.namn is not null
-                  and trim(r.namn) <> ''
-                  and exists (
-                      select d.id
-                      from DoubleGangers d
-                      where d.horseName = r.namn
-                  )
-                order by r.datum, r.bankod, r.lopp, r.nr, r.namn
-            """)
-    List<ResultHorse> findHorsesWithDoubleGangerOnDate(@Param("datum") Integer datum);
+    @Query(value = """
+                with today_horses as (
+                    select datum, bankod, lopp, nr, namn
+                    from resultat
+                    where datum = :datum
+                      and namn is not null
+                      and trim(namn) <> ''
+                ), horse_history as (
+                    select h.namn,
+                           count(*) as starts,
+                           bool_or(coalesce(h.tid = 99.0 and h.placering not in (15, 99), false))
+                               as tid_99_warning
+                    from resultat h
+                    where h.namn in (select namn from today_horses)
+                    group by h.namn
+                ), horse_warnings as (
+                    select h.namn, h.starts, h.tid_99_warning,
+                           h.starts < :minStarts as horse_warning,
+                           exists (
+                               select 1 from double_gangers d where d.horse_name = h.namn
+                           ) as double_ganger
+                    from horse_history h
+                )
+                select t.datum, t.bankod, t.lopp, t.nr, t.namn,
+                       w.double_ganger as "doubleGanger",
+                       w.tid_99_warning as "tid99Warning",
+                       w.horse_warning as "horseWarning",
+                       w.starts
+                from today_horses t
+                join horse_warnings w on w.namn = t.namn
+                where w.double_ganger or w.tid_99_warning or w.horse_warning
+                order by t.datum, t.bankod, t.lopp, t.nr, t.namn
+            """, nativeQuery = true)
+    List<TodayHorseWarning> findHorsesWithWarningsOnDate(@Param("datum") Integer datum,
+                                                       @Param("minStarts") long minStarts);
 }

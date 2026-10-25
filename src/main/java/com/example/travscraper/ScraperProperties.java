@@ -13,17 +13,19 @@ import java.time.LocalDate;
 @Setter
 public class ScraperProperties {
 
-    private LocalDate startDateResults = LocalDate.now().minusDays(279);
-    private LocalDate endDateResults = LocalDate.now().minusDays(257);
+    private LocalDate startDateResults = LocalDate.now().minusDays(267);
+    private LocalDate endDateResults = LocalDate.now().minusDays(258);
 
-    private LocalDate startDateForeign = LocalDate.now().minusDays(279);
-    private LocalDate endDateResultForeign = LocalDate.now().minusDays(257);
+    private LocalDate startDateForeign = LocalDate.now().minusDays(280);
+    private LocalDate endDateResultForeign = LocalDate.now().minusDays(258);
 
-    private LocalDate startDateFuture = LocalDate.now().minusDays(279);
-    private LocalDate endDateFuture = LocalDate.now().plusDays(257);
 
-    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(279);
-    private LocalDate endDateResultatPopup = LocalDate.now().plusDays(257);
+
+    private LocalDate startDateFuture = LocalDate.now().minusDays(0);
+    private LocalDate endDateFuture = LocalDate.now().plusDays(0);
+
+    private LocalDate startDateResultatPopup = LocalDate.now().minusDays(1);
+    private LocalDate endDateResultatPopup = LocalDate.now().minusDays(0);
 
     private LocalDate startDateReducedSystem = LocalDate.now().plusDays(0);
     private LocalDate endDateReducedSystem = LocalDate.now().plusDays(2);

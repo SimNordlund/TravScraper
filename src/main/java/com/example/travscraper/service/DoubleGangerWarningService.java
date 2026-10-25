@@ -1,9 +1,9 @@
 package com.example.travscraper.service;
 
 import com.example.travscraper.entity.DoubleGangerWarning;
-import com.example.travscraper.entity.ResultHorse;
 import com.example.travscraper.repo.DoubleGangerWarningRepo;
 import com.example.travscraper.repo.ResultHorseRepo;
+import com.example.travscraper.repo.TodayHorseWarning;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,6 +21,7 @@ import java.util.List;
 public class DoubleGangerWarningService {
 
     private static final int BATCH_SIZE = 500;
+    private static final int MIN_STARTS = 8;
     private static final ZoneId STOCKHOLM = ZoneId.of("Europe/Stockholm");
 
     private final ResultHorseRepo resultHorseRepo;
@@ -29,34 +30,38 @@ public class DoubleGangerWarningService {
     @Transactional
     public void refreshDoubleGangerWarnings() {
         int today = Integer.parseInt(LocalDate.now(STOCKHOLM).format(DateTimeFormatter.BASIC_ISO_DATE));
-        log.info("DoubleGangerWarning: starting refresh for {}", today);
+        log.info("Horse warnings: starting refresh for {} (minStarts={})", today, MIN_STARTS);
 
-        List<ResultHorse> flagged = resultHorseRepo.findHorsesWithDoubleGangerOnDate(today);
-        log.info("DoubleGangerWarning: found {} result rows matching double_gangers", flagged.size());
+        List<TodayHorseWarning> flagged = resultHorseRepo.findHorsesWithWarningsOnDate(today, MIN_STARTS);
+        log.info("Horse warnings: found {} result rows with doubleganger, tid 99 or too few starts", flagged.size());
 
         doubleGangerWarningRepo.deleteAllInBatch();
 
         if (flagged.isEmpty()) {
-            log.info("DoubleGangerWarning: nothing to save, finished");
+            log.info("Horse warnings: nothing to save, finished");
             return;
         }
 
         List<DoubleGangerWarning> buffer = new ArrayList<>(Math.min(BATCH_SIZE, flagged.size()));
         int saved = 0;
 
-        for (ResultHorse result : flagged) {
+        for (TodayHorseWarning result : flagged) {
             buffer.add(DoubleGangerWarning.builder()
                     .datum(result.getDatum())
                     .bankod(result.getBankod())
                     .lopp(result.getLopp())
                     .nr(result.getNr())
                     .namn(result.getNamn())
+                    .doubleGanger(result.getDoubleGanger())
+                    .tid99Warning(result.getTid99Warning())
+                    .horseWarning(result.getHorseWarning())
+                    .starts(result.getStarts())
                     .build());
 
             if (buffer.size() >= BATCH_SIZE) {
                 doubleGangerWarningRepo.saveAll(buffer);
                 saved += buffer.size();
-                log.info("DoubleGangerWarning: saved {} / {}", saved, flagged.size());
+                log.info("Horse warnings: saved {} / {}", saved, flagged.size());
                 buffer.clear();
             }
         }
@@ -66,6 +71,6 @@ public class DoubleGangerWarningService {
             saved += buffer.size();
         }
 
-        log.info("DoubleGangerWarning: finished, saved {} rows to double_ganger_warning", saved);
+        log.info("Horse warnings: finished, saved {} rows to double_ganger_warning", saved);
     }
 }

@@ -33,4 +33,17 @@ public class DoubleGangerWarning {
 
     @Column(name = "namn", nullable = false, length = 50)
     private String namn;
+
+    @Column(name = "double_ganger", nullable = false, columnDefinition = "boolean default false")
+    private boolean doubleGanger;
+
+    @Column(name = "tid_99_warning", nullable = false, columnDefinition = "boolean default false")
+    private boolean tid99Warning;
+
+    @Column(name = "horse_warning", nullable = false, columnDefinition = "boolean default false")
+    private boolean horseWarning;
+
+    @Builder.Default
+    @Column(name = "starts", nullable = false, columnDefinition = "bigint default 0")
+    private Long starts = 0L;
 }
