@@ -98,8 +98,8 @@ public class TravScraperApplication implements ApplicationRunner {
         runStep("double gangers", doubleGangerService::refreshDoubleGangers);
         runStep("horse warnings", () -> horseWarningService.refreshWarnings(8));
         runStep("tid 99 warnings", tid99WarningService::refreshTid99Warnings);
-    //    runStep("RIO calculation", rioCalculationService::CalculateRio);
         runStep("today's horse warnings", doubleGangerWarningService::refreshDoubleGangerWarnings);
+        runStep("RIO calculation", rioCalculationService::CalculateRio);
     }
 
     private void runStep(String name, ScraperStep step) {
