@@ -93,9 +93,8 @@ public class TravScraperApplication implements ApplicationRunner {
     //    runStep("reduced trio", reducedTrioScraping::scrapeTrio);
     //    runStep("future starts", service::scrapeFuture);
     //    runStep("result popups", service::scrapeResultatPopupsOnly);
-
-        runStep("results", service::scrape); //2026-01-31
-        runStep("foreign results", service::scrapeForeign);
+    //    runStep("results", service::scrape); //2026-01-31
+    //    runStep("foreign results", service::scrapeForeign);
         runStep("double gangers", doubleGangerService::refreshDoubleGangers);
         runStep("horse warnings", () -> horseWarningService.refreshWarnings(8));
         runStep("tid 99 warnings", tid99WarningService::refreshTid99Warnings);

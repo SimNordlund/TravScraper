@@ -219,7 +219,7 @@ public class AtgScraperService {
                 try {
                     out[0] = Integer.parseInt(m.group(1));
                     String g2 = m.group(2);
-                    out[1] = (g2 == null || g2.isBlank()) ? 1 : Integer.parseInt(g2);
+                    out[1] = (g2 == null || g2.isBlank()) ? -1 : Integer.parseInt(g2);
                     out[2] = i;
                     return out;
                 } catch (NumberFormatException ignored) {
@@ -252,7 +252,7 @@ public class AtgScraperService {
             if (!nextLooksLikeTime) continue;
 
             out[0] = dist;
-            out[1] = 1;
+            out[1] = -1;
             out[2] = i;
             return out;
         }
@@ -270,7 +270,8 @@ public class AtgScraperService {
         Matcher mr = PLACERING_WITH_R.matcher(token);
         if (mr.matches()) token = mr.group(1);
 
-        if (token.equals("k") || token.equals("p") || token.equals("str")) return 99;
+        if (isScratchedText(token)) return 15;
+        if (token.equals("k") || token.equals("p")) return 99;
 
         if (token.equals("d")) return 15;
 
@@ -279,7 +280,7 @@ public class AtgScraperService {
 
         try {
             int v = Integer.parseInt(token);
-            if (v == 0 || v == 9) return 15;
+            if (v == 9) return 15;
             return v;
         } catch (NumberFormatException e) {
             return null;
@@ -287,7 +288,12 @@ public class AtgScraperService {
     }
 
     private static Integer extractPlaceringFromTds(Elements tds, int distIdx) {
-        if (tds == null || tds.isEmpty()) return 0;
+        if (tds == null || tds.isEmpty()) return null;
+
+        // Strykning ska ha företräde även om en annan cell innehåller en siffra.
+        for (Element td : tds) {
+            if (isScratchedText(td.text())) return 15;
+        }
 
         for (int i = 0; i < tds.size(); i++) {
             Element td = tds.get(i);
@@ -303,7 +309,54 @@ public class AtgScraperService {
             if (v != null) return v;
         }
 
-        return 0;
+        return null;
+    }
+
+    private static boolean isScratchedText(String raw) {
+        return normalizeCellText(raw).toLowerCase(Locale.ROOT)
+                .matches("^(?:s|str|struken|struket|strukna|strøket|strøken|scr|scratched)\\.?$");
+    }
+
+    private static boolean isScratchedRow(Element row) {
+        return row != null && (row.selectFirst(
+                "[startlist-export-id$=-scratched], [data-test-id*=scratched], " +
+                        "[data-scratched=true], [class*=scratched]") != null
+                || row.select("td").stream().anyMatch(td -> isScratchedText(td.text())));
+    }
+
+    private static Integer extractHorsePlacement(Element row) {
+        if (isScratchedRow(row)) return 15;
+        Element placement = row.selectFirst("[data-test-id=horse-placement]");
+        return placement == null ? null : mapPlaceringValue(placement.text());
+    }
+
+    private static Integer extractHorseSpar(Element row) {
+        Element position = row.selectFirst(
+                "[startlist-export-id^=startlist-cell-postPosition-export], " +
+                        "[data-test-id=startlist-cell-post-position]");
+        String raw = position == null ? "" : normalizeCellText(position.text());
+        if (raw.isBlank()) {
+            Element table = row.closest("table");
+            int index = findHeaderIndex(table, Pattern.compile("^spår$", Pattern.CASE_INSENSITIVE));
+            raw = textAt(row.select("td"), index);
+        }
+        if (raw.matches("^[1-9][0-9]?$")) return Integer.parseInt(raw);
+        int[] distanceAndPosition = findDistSparFromTds(row.select("td"));
+        return distanceAndPosition[1] > 0 ? distanceAndPosition[1] : null;
+    }
+
+    private static Integer mergePlacering(Integer current, Integer incoming) {
+        // 15 är bestående och en ny strykning får skriva över alla tidigare värden.
+        if (Objects.equals(current, 15) || Objects.equals(incoming, 15)) return 15;
+        if (incoming != null && incoming != 0) return incoming;
+        return current != null ? current : 0;
+    }
+
+    private static void fillSparAndPlacering(ResultHorse horse, Integer spar, Integer placering) {
+        if ((horse.getSpar() == null || horse.getSpar() <= 0) && spar != null && spar > 0) {
+            horse.setSpar(spar);
+        }
+        horse.setPlacering(mergePlacering(horse.getPlacering(), placering));
     }
 
     private static Integer parsePlaceringRawDigit1to9(String raw) {
@@ -1115,10 +1168,9 @@ public class AtgScraperService {
         List<ScrapedHorse> horsesToSave = new ArrayList<>(rows.size());
 
         for (Element tr : rows) {
-            Element place = tr.selectFirst("[data-test-id=horse-placement]");
             Element split = tr.selectFirst("[startlist-export-id^=startlist-cell-horse-split-export]");
             Element vOdd = tr.selectFirst("[data-test-id=startlist-cell-vodds]");
-            if (place == null || split == null || vOdd == null) continue;
+            if (split == null) continue;
 
             String[] parts = split.text().trim().split("\\s+", 2);
             String nr = parts.length > 0 ? parts[0] : "";
@@ -1127,18 +1179,27 @@ public class AtgScraperService {
             String normalizedName = normalizeHorseNameSimple(name);
 
             ScrapedHorse horse = existingByNumber.get(nr);
+            Element place = tr.selectFirst("[data-test-id=horse-placement]");
+            String placement = place == null ? "" : normalizeCellText(place.text());
+            String currentPlacement = horse == null ? "" : normalizeCellText(horse.getPlacement());
+            if (isScratchedRow(tr) || "15".equals(currentPlacement) || isScratchedText(currentPlacement)) {
+                placement = "15";
+            } else if (placement.isBlank() || placement.equals("-")) {
+                placement = currentPlacement.isBlank() || currentPlacement.equals("-") ? "0" : currentPlacement;
+            }
+            String vOdds = vOdd == null ? (horse == null ? "" : horse.getVOdds()) : vOdd.text().trim();
             if (horse != null) {
                 horse.setNameOfHorse(normalizedName);
-                horse.setPlacement(place.text().trim());
-                horse.setVOdds(vOdd.text().trim());
+                horse.setPlacement(placement);
+                horse.setVOdds(vOdds);
                 horse.setPOdds(pMap.getOrDefault(nr, ""));
                 horse.setTrioOdds(trioMap.getOrDefault(nr, ""));
                 horse.setTvillingOdds(tvillingMap.getOrDefault(nr, ""));
             } else {
                 horse = ScrapedHorse.builder()
                         .date(date).track(bankode).lap(lapValue)
-                        .numberOfHorse(nr).nameOfHorse(normalizedName).placement(place.text().trim())
-                        .vOdds(vOdd.text().trim())
+                        .numberOfHorse(nr).nameOfHorse(normalizedName).placement(placement)
+                        .vOdds(vOdds)
                         .pOdds(pMap.getOrDefault(nr, ""))
                         .trioOdds(trioMap.getOrDefault(nr, ""))
                         .tvillingOdds(tvillingMap.getOrDefault(nr, ""))
@@ -1262,6 +1323,8 @@ public class AtgScraperService {
             Element driverEl = tr.selectFirst("[startlist-export-id^=startlist-cell-driver-split-export]");
             String kusk = driverEl != null ? trimToMax(normalizeCellText(driverEl.text()), 80) : "";
             Integer horseDistans = raceDistans != null ? raceDistans + currentDistanceAddition : null;
+            Integer horseSpar = extractHorseSpar(tr);
+            Integer horsePlacering = extractHorsePlacement(tr);
 
             log.info("FUTURE raw: date={} track={} lap={} nr={} name='{}' odds='{}' kusk='{}' distans='{}'",
                     date, track, lap, nr, normalizedName, vOdds, kusk, horseDistans);
@@ -1308,7 +1371,7 @@ public class AtgScraperService {
                 resultUpserts.put(key, rhOdds);
             }
 
-            if ((kusk != null && !kusk.isBlank()) || horseDistans != null) {
+            {
                 int datum = toYyyymmdd(date);
                 String safeName = normalizedName;
                 String key = datum + "|" + bankode + "|" + lap + "|" + safeName;
@@ -1337,6 +1400,7 @@ public class AtgScraperService {
                 }
 
                 if (rh != null) {
+                    fillSparAndPlacering(rh, horseSpar, horsePlacering);
                     if (kusk != null && !kusk.isBlank()) {
                         String current = rh.getKusk();
                         if (current == null || current.isBlank() || !Objects.equals(current, kusk)) {
@@ -1398,6 +1462,7 @@ public class AtgScraperService {
                                     .findByDatumAndBankodAndLoppAndNamn(rh.getDatum(), rh.getBankod(), rh.getLopp(), rh.getNamn());
                             if (existing.isPresent()) {
                                 ResultHorse e = existing.get();
+                                fillSparAndPlacering(e, rh.getSpar(), rh.getPlacering());
 
                                 // Odds: behåll din "säker" fallback-logik
                                 Integer incomingOdds = rh.getOdds();
@@ -1977,7 +2042,7 @@ public class AtgScraperService {
             Integer spar = (distSparIdx[1] >= 0 ? distSparIdx[1] : null);
             int distIdx = distSparIdx[2];
 
-            Integer placering = extractPlaceringFromTds(tds, distIdx);
+            Integer placering = isScratchedRow(tr) ? 15 : extractPlaceringFromTds(tds, distIdx);
             TidInfo tidInfo = extractTidFromTds(tds, distIdx);
             Double tid = tidInfo.tid();
             String startmetod = tidInfo.startmetod();
@@ -2011,8 +2076,7 @@ public class AtgScraperService {
             }
 
             if (distans != null) rh.setDistans(distans);
-            if (spar != null) rh.setSpar(spar);
-            if (placering != null) rh.setPlacering(placering);
+            fillSparAndPlacering(rh, spar, placering);
             if (tid != null) rh.setTid(tid);
             if (startmetod != null && !startmetod.isBlank()) rh.setStartmetod(startmetod);
             if (galopp != null && !galopp.isBlank()) rh.setGalopp(galopp);
@@ -2054,8 +2118,7 @@ public class AtgScraperService {
                     if (!rh.getNamn().isBlank()) existing.setNamn(rh.getNamn());
 
                     if (rh.getDistans() != null) existing.setDistans(rh.getDistans());
-                    if (rh.getSpar() != null) existing.setSpar(rh.getSpar());
-                    if (rh.getPlacering() != null) existing.setPlacering(rh.getPlacering());
+                    fillSparAndPlacering(existing, rh.getSpar(), rh.getPlacering());
                     if (rh.getTid() != null) existing.setTid(rh.getTid());
                     if (rh.getStartmetod() != null && !rh.getStartmetod().isBlank())
                         existing.setStartmetod(rh.getStartmetod());
